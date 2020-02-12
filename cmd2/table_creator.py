@@ -11,31 +11,17 @@ from . import ansi, utils
 COL_PADDING = '  '
 
 
-class Cell:
-    """Represents a table cell"""
-    def __init__(self):
-        # Data in this cell split into individual lines
-        self.lines = []
-
-        # Display width of this cell
-        self.width = 0
-
-        # To create a table row, we go from cell to cell, adding one line at a time. We use this string to
-        # save the state of a cell's ANSI style so we can restore it when beginning its next line.
-        self.current_style = ''
-
-
 class Column:
     """Table column configuration"""
-    def __init__(self, label: str, *, width: Optional[int] = None,
-                 label_alignment: utils.TextAlignment = utils.TextAlignment.LEFT,
+    def __init__(self, header: str, *, width: Optional[int] = None,
+                 header_alignment: utils.TextAlignment = utils.TextAlignment.LEFT,
                  data_alignment: utils.TextAlignment = utils.TextAlignment.LEFT,
                  wrap_data: bool = False) -> None:
         """
         Column initializer
-        :param label: label for column header
-        :param width: display width of column (defaults to width of label or 1 if label is blank)
-        :param label_alignment: how to align label (defaults to left)
+        :param header: label for column header
+        :param width: display width of column (defaults to width of header or 1 if header is blank)
+        :param header_alignment: how to align header (defaults to left)
         :param data_alignment: how to align data (defaults to left)
         :param wrap_data: If True, data will wrap within the width of the column and data_alignment is ignored.
                           Wrapping is basic and will split words. If you require more advanced wrapping, then wrap
@@ -45,20 +31,20 @@ class Column:
                           Defaults to False.
         :raises ValueError if width is less than 1
         """
-        self.label = label
+        self.header = header
 
         if width is None:
-            if not self.label:
+            if not self.header:
                 self.width = 1
             else:
-                # Find the width of the longest line in label
-                self.width = max([ansi.style_aware_wcswidth(line) for line in self.label.splitlines()])
+                # Find the width of the longest line in header
+                self.width = max([ansi.style_aware_wcswidth(line) for line in self.header.splitlines()])
         elif width < 1:
             raise ValueError("column width cannot be less than 1")
         else:
             self. width = width
 
-        self.label_alignment = label_alignment
+        self.header_alignment = header_alignment
         self.data_alignment = data_alignment
         self.wrap_data = wrap_data
 
@@ -78,17 +64,17 @@ class TableCreator:
         self.cols = cols
         self.tab_width = tab_width
 
-    def _generate_cell_lines(self, data: Any, is_label: bool, col: Column) -> Tuple[List[str], int]:
+    def _generate_cell_lines(self, data: Any, is_header: bool, col: Column) -> Tuple[List[str], int]:
         """
         Generate the lines of a table cell
         :param data: data to be included in cell
-        :param is_label: True if writing a label cell, otherwise writing a data cell
+        :param is_header: True if writing a header cell, otherwise writing a data cell
         :param col: Column definition for this cell
         :return: Tuple of cell lines and the display width of the cell
         """
         # Align the text according to Column parameters
-        if is_label:
-            alignment = col.label_alignment
+        if is_header:
+            alignment = col.header_alignment
         else:
             alignment = col.data_alignment
 
@@ -96,7 +82,7 @@ class TableCreator:
         data_str = str(data).replace('\t', ' ' * self.tab_width)
 
         # Check if we are aligning the data
-        if is_label or not col.wrap_data:
+        if is_header or not col.wrap_data:
             aligned_text = utils.align_text(data_str, width=col.width,
                                             tab_width=self.tab_width, alignment=alignment)
 
@@ -147,14 +133,27 @@ class TableCreator:
 
             return lines, col.width
 
-    def _generate_row(self, data: List[Any], is_label: bool) -> Tuple[str, int]:
+    def _generate_row(self, data: List[Any], is_header: bool) -> Tuple[str, int]:
         """
         Generate a table data row
         :param data: list of data the same length as cols
-        :param is_label: True if writing a label cell, otherwise writing a data cell
+        :param is_header: True if writing a header cell, otherwise writing a data cell
         :return: Tuple containing row string and display width of row
         :raises: ValueError if data isn't the same length as self.cols
         """
+        class Cell:
+            """Inner class which represents a table cell"""
+            def __init__(self):
+                # Data in this cell split into individual lines
+                self.lines = []
+
+                # Display width of this cell
+                self.width = 0
+
+                # To create a table row, we go from cell to cell, adding one line at a time. We use this string to
+                # save the state of a cell's ANSI style so we can restore it when beginning its next line.
+                self.current_style = ''
+
         if len(self.cols) != len(data):
             raise ValueError("length of cols must match length of data")
 
@@ -165,7 +164,7 @@ class TableCreator:
 
         for col_index, col in enumerate(self.cols):
             cell = Cell()
-            cell.lines, cell.width = self._generate_cell_lines(data[col_index], is_label, col)
+            cell.lines, cell.width = self._generate_cell_lines(data[col_index], is_header, col)
             cells.append(cell)
             num_lines = max(len(cell.lines), num_lines)
             total_width += cell.width
@@ -208,12 +207,12 @@ class TableCreator:
 
         return row_buf.getvalue(), total_width
 
-    def generate_label_row(self, *, divider: Optional[str] = '-') -> str:
+    def generate_header_row(self, *, divider: Optional[str] = '-') -> str:
         """
-        Generate the label row
+        Generate the header row
         :param divider: character that makes up the divider row below the header. Set this to None if you want no
                         divider. If divider is a tab, then it will be converted to a space. Default to dash.
-        :return: label row string
+        :return: header row string
         :raises: TypeError if divider is more than one character (not including ANSI style sequences)
                  ValueError if divider is an unprintable character like a newline
         """
@@ -227,8 +226,8 @@ class TableCreator:
             if ansi.style_aware_wcswidth(divider) == -1:
                 raise (ValueError("Divider is an unprintable character"))
 
-        data = [col.label for col in self.cols]
-        row_str, width = self._generate_row(data, is_label=True)
+        data = [col.header for col in self.cols]
+        row_str, width = self._generate_row(data, is_header=True)
 
         # Check if we need a divider
         if divider is not None and width > 0:
@@ -243,5 +242,5 @@ class TableCreator:
         :return: data row string
         :raises: ValueError if data isn't the same length as self.cols
         """
-        row_str, width = self._generate_row(data, is_label=False)
+        row_str, width = self._generate_row(data, is_header=False)
         return row_str
