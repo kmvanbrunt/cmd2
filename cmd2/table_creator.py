@@ -40,7 +40,7 @@ class Column:
                 # Find the width of the longest line in header
                 self.width = max([ansi.style_aware_wcswidth(line) for line in self.header.splitlines()])
         elif width < 1:
-            raise ValueError("column width cannot be less than 1")
+            raise ValueError("Column width cannot be less than 1")
         else:
             self. width = width
 
@@ -155,7 +155,7 @@ class TableCreator:
                 self.current_style = ''
 
         if len(self.cols) != len(data):
-            raise ValueError("length of cols must match length of data")
+            raise ValueError("Length of cols must match length of data")
 
         # Build a list of cells for this row
         total_width = 0
@@ -191,7 +191,8 @@ class TableCreator:
 
                     # Add this line to the buffer and reset the style for the next cell
                     row_buf.write(line)
-                    row_buf.write(ansi.RESET_ALL)
+                    if cell.current_style:
+                        row_buf.write(ansi.RESET_ALL)
 
                 # Otherwise fill this cell with spaces
                 else:
@@ -231,7 +232,7 @@ class TableCreator:
 
         # Check if we need a divider
         if divider is not None and width > 0:
-            row_str += ('\n' + divider * width)
+            row_str += '\n' + utils.align_left('', fill_char=divider, width=width)
 
         return row_str
 
