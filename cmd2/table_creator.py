@@ -87,22 +87,22 @@ class TableCreator:
 
             # Respect the existing line breaks
             data_str_lines = data_str.splitlines()
-            for line_index, data_line in enumerate(data_str_lines):
+            for line_index, cur_line in enumerate(data_str_lines):
                 if line_index > 0:
                     wrapped_buf.write('\n')
 
-                styles = utils.get_styles_in_text(data_line)
+                styles = utils.get_styles_in_text(cur_line)
                 cur_width = 0
                 char_index = 0
 
-                while char_index < len(data_line):
+                while char_index < len(cur_line):
                     # Check if a style sequence is at this index. These don't count toward display width.
                     if char_index in styles:
                         wrapped_buf.write(styles[char_index])
                         char_index += len(styles[char_index])
                         continue
 
-                    cur_char = data_str[char_index]
+                    cur_char = cur_line[char_index]
                     cur_char_width = wcwidth(cur_char)
 
                     if cur_width + cur_char_width > col.width:
