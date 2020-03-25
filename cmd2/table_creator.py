@@ -23,7 +23,7 @@ class Column:
         :param width: display width of column (defaults to width of header or 1 if header is blank)
         :param header_alignment: how to align header (defaults to left)
         :param data_alignment: how to align data (defaults to left)
-        :param wrap_data: If True, data will wrap within the width of the column and data_alignment is ignored.
+        :param wrap_data: If True, data will wrap within the width of the column.
                           Wrapping is basic and will split words. If you require more advanced wrapping, then wrap
                           your data with another library prior to building the table.
 
@@ -81,57 +81,48 @@ class TableCreator:
         # Convert data to string and replace tabs with spaces
         data_str = str(data).replace('\t', ' ' * self.tab_width)
 
-        # Check if we are aligning the data
-        if is_header or not col.wrap_data:
-            aligned_text = utils.align_text(data_str, width=col.width,
-                                            tab_width=self.tab_width, alignment=alignment)
+        # Check if we are wrapping this cell
+        if not is_header and col.wrap_data:
+            wrapped_buf = io.StringIO()
 
-            # Calculate the actual width of the cell based on the longest line in it
-            lines = aligned_text.splitlines()
-            cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
-            return lines, cell_width
+            # Respect the existing line breaks
+            data_str_lines = data_str.splitlines()
+            for line_index, data_line in enumerate(data_str_lines):
+                if line_index > 0:
+                    wrapped_buf.write('\n')
 
-        # Otherwise wrap the data
-        else:
-            styles = utils.get_styles_in_text(data_str)
+                styles = utils.get_styles_in_text(data_line)
+                cur_width = 0
+                char_index = 0
 
-            lines = []
-            cur_line_buf = io.StringIO()
-            cur_line_width = 0
-            index = 0
+                while char_index < len(data_line):
+                    # Check if a style sequence is at this index. These don't count toward display width.
+                    if char_index in styles:
+                        wrapped_buf.write(styles[char_index])
+                        char_index += len(styles[char_index])
+                        continue
 
-            while index < len(data_str):
-                # Check if a style sequence is at this index. These don't count toward display width.
-                if index in styles:
-                    cur_line_buf.write(styles[index])
-                    index += len(styles[index])
-                    continue
-
-                cur_char = data_str[index]
-                index += 1
-
-                if cur_char in '\n\r':
-                    # We hit a line break. Start a new line.
-                    lines.append(cur_line_buf.getvalue())
-                    cur_line_width = 0
-                    cur_line_buf = io.StringIO()
-                else:
+                    cur_char = data_str[char_index]
                     cur_char_width = wcwidth(cur_char)
 
-                    if cur_line_width + cur_char_width > col.width:
-                        # Adding the char will exceed the column width. Start a new line.
-                        lines.append(cur_line_buf.getvalue())
-                        cur_line_width = 0
-                        cur_line_buf = io.StringIO()
+                    if cur_width + cur_char_width > col.width:
+                        # Adding this char will exceed the column width. Start a new line.
+                        wrapped_buf.write('\n')
+                        cur_width = 0
 
-                    cur_line_width += cur_char_width
-                    cur_line_buf.write(cur_char)
+                    cur_width += cur_char_width
+                    wrapped_buf.write(cur_char)
+                    char_index += 1
 
-            # Save the current line if it has been written to
-            if cur_line_width > 0:
-                lines.append(cur_line_buf.getvalue())
+            data_str = wrapped_buf.getvalue()
 
-            return lines, col.width
+        # Align the text
+        aligned_text = utils.align_text(data_str, width=col.width,
+                                        tab_width=self.tab_width, alignment=alignment)
+
+        lines = aligned_text.splitlines()
+        cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
+        return lines, cell_width
 
     def _generate_row(self, data: List[Any], is_header: bool) -> Tuple[str, int]:
         """
