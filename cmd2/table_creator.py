@@ -1,6 +1,7 @@
 # coding=utf-8
 """Simple table creation class"""
 import io
+from collections import deque
 from typing import Any, List, Optional, Tuple
 
 from wcwidth import wcwidth
@@ -64,6 +65,34 @@ class TableCreator:
         self.cols = cols
         self.tab_width = tab_width
 
+    @staticmethod
+    def _simple_wrap_line(line: str, max_width: int) -> str:
+        styles = utils.get_styles_in_text(line)
+        wrapped_buf = io.StringIO()
+        char_index = 0
+        cur_width = 0
+
+        while char_index < len(line):
+            # Check if a style sequence is at this index. These don't count toward display width.
+            if char_index in styles:
+                wrapped_buf.write(styles[char_index])
+                char_index += len(styles[char_index])
+                continue
+
+            cur_char = line[char_index]
+            cur_char_width = wcwidth(cur_char)
+
+            if cur_width + cur_char_width > max_width:
+                # Adding this char will exceed the column width. Start a new line.
+                wrapped_buf.write('\n')
+                cur_width = 0
+
+            cur_width += cur_char_width
+            wrapped_buf.write(cur_char)
+            char_index += 1
+
+        return wrapped_buf.getvalue()
+
     def _generate_cell_lines(self, data: Any, is_header: bool, col: Column) -> Tuple[List[str], int]:
         """
         Generate the lines of a table cell
@@ -72,6 +101,8 @@ class TableCreator:
         :param col: Column definition for this cell
         :return: Tuple of cell lines and the display width of the cell
         """
+        advanced = True
+
         # Align the text according to Column parameters
         if is_header:
             alignment = col.header_alignment
@@ -91,28 +122,43 @@ class TableCreator:
                 if line_index > 0:
                     wrapped_buf.write('\n')
 
-                styles = utils.get_styles_in_text(cur_line)
-                cur_width = 0
-                char_index = 0
+                if advanced:
+                    # Break this line into its words
+                    words = deque(cur_line.split())
 
-                while char_index < len(cur_line):
-                    # Check if a style sequence is at this index. These don't count toward display width.
-                    if char_index in styles:
-                        wrapped_buf.write(styles[char_index])
-                        char_index += len(styles[char_index])
-                        continue
+                    cur_width = 0
+                    while words:
+                        if cur_width == col.width:
+                            # Start a new line
+                            wrapped_buf.write('\n')
+                            cur_width = 0
 
-                    cur_char = cur_line[char_index]
-                    cur_char_width = wcwidth(cur_char)
+                        # Get the next word
+                        cur_word = words.popleft()
+                        word_width = ansi.style_aware_wcswidth(cur_word)
 
-                    if cur_width + cur_char_width > col.width:
-                        # Adding this char will exceed the column width. Start a new line.
-                        wrapped_buf.write('\n')
-                        cur_width = 0
+                        if word_width > col.width:
+                            # This word is too wide than the max width of a line. Break it up into chunks that
+                            # will fit and place those words at the beginning of the list.
+                            wrapped_word = self._simple_wrap_line(cur_word, col.width)
+                            chunks = wrapped_word.splitlines()
+                            for line in reversed(chunks):
+                                words.appendleft(line)
+                        else:
+                            # If this isn't the first word on the line, add a space before it
+                            # if there is room or print it on the next line.
+                            if cur_width > 0:
+                                if cur_width + word_width < col.width:
+                                    cur_word = ' ' + cur_word
+                                    word_width += 1
+                                else:
+                                    wrapped_buf.write('\n')
+                                    cur_width = 0
 
-                    cur_width += cur_char_width
-                    wrapped_buf.write(cur_char)
-                    char_index += 1
+                            cur_width += word_width
+                            wrapped_buf.write(cur_word)
+                else:
+                    wrapped_buf.write(self._simple_wrap_line(cur_line, col.width))
 
             data_str = wrapped_buf.getvalue()
 
