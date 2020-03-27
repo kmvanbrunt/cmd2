@@ -69,9 +69,11 @@ class TableCreator:
     def _simple_wrap_line(line: str, max_width: int) -> str:
         styles = utils.get_styles_in_text(line)
         wrapped_buf = io.StringIO()
-        char_index = 0
+
+        # Display width of the current line we are building
         cur_width = 0
 
+        char_index = 0
         while char_index < len(line):
             # Check if a style sequence is at this index. These don't count toward display width.
             if char_index in styles:
@@ -123,10 +125,12 @@ class TableCreator:
                     wrapped_buf.write('\n')
 
                 if advanced:
-                    # Break this line into its words
+                    # Display width of the current line we are building
+                    cur_width = 0
+
+                    # Use whitespace as word boundaries
                     words = deque(cur_line.split())
 
-                    cur_width = 0
                     while words:
                         if cur_width == col.width:
                             # Start a new line
@@ -145,9 +149,9 @@ class TableCreator:
                             for line in reversed(chunks):
                                 words.appendleft(line)
                         else:
-                            # If this isn't the first word on the line, add a space before it
-                            # if there is room or print it on the next line.
-                            if cur_width > 0:
+                            # If this isn't the first word on the line and it has display width,
+                            # add a space before it if there is room or print it on the next line.
+                            if cur_width > 0 and word_width > 0:
                                 if cur_width + word_width < col.width:
                                     cur_word = ' ' + cur_word
                                     word_width += 1
