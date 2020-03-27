@@ -95,7 +95,7 @@ class TableCreator:
 
         return wrapped_buf.getvalue()
 
-    def _generate_cell_lines(self, data: Any, is_header: bool, col: Column) -> Tuple[List[str], int]:
+    def _generate_cell_lines(self, data: Any, is_header: bool, col: Column, fill_char: str) -> Tuple[List[str], int]:
         """
         Generate the lines of a table cell
         :param data: data to be included in cell
@@ -167,14 +167,14 @@ class TableCreator:
             data_str = wrapped_buf.getvalue()
 
         # Align the text
-        aligned_text = utils.align_text(data_str, width=col.width,
+        aligned_text = utils.align_text(data_str, fill_char=fill_char, width=col.width,
                                         tab_width=self.tab_width, alignment=alignment)
 
         lines = aligned_text.splitlines()
         cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
         return lines, cell_width
 
-    def _generate_row(self, data: List[Any], is_header: bool) -> Tuple[str, int]:
+    def _generate_row(self, data: List[Any], is_header: bool, fill_char: str) -> Tuple[str, int]:
         """
         Generate a table data row
         :param data: list of data the same length as cols
@@ -191,10 +191,6 @@ class TableCreator:
                 # Display width of this cell
                 self.width = 0
 
-                # To create a table row, we go from cell to cell, adding one line at a time. We use this string to
-                # save the state of a cell's ANSI style so we can restore it when beginning its next line.
-                self.current_style = ''
-
         if len(self.cols) != len(data):
             raise ValueError("Length of cols must match length of data")
 
@@ -205,7 +201,7 @@ class TableCreator:
 
         for col_index, col in enumerate(self.cols):
             cell = Cell()
-            cell.lines, cell.width = self._generate_cell_lines(data[col_index], is_header, col)
+            cell.lines, cell.width = self._generate_cell_lines(data[col_index], is_header, col, fill_char)
             cells.append(cell)
             num_lines = max(len(cell.lines), num_lines)
             total_width += cell.width
@@ -221,23 +217,12 @@ class TableCreator:
             for cell_index, cell in enumerate(cells):
                 # Check if this cell has a line at this index
                 if line_index < len(cell.lines):
-                    line = cell.lines[line_index]
-
-                    # Restore any style
-                    row_buf.write(cell.current_style)
-
-                    # Save the styles used in this lin
-                    styles = utils.get_styles_in_text(line)
-                    cell.current_style += ''.join(styles.values())
-
-                    # Add this line to the buffer and reset the style for the next cell
-                    row_buf.write(line)
-                    if cell.current_style:
-                        row_buf.write(ansi.RESET_ALL)
+                    row_buf.write(cell.lines[line_index])
 
                 # Otherwise fill this cell with spaces
                 else:
-                    row_buf.write(' ' * cell.width)
+                    # TODO: This may not divide evenly. Maybe consider bg color instead of fill_char.
+                    row_buf.write(fill_char * cell.width)
 
                 # Add padding if this is not the last column
                 if cell_index < len(cells) - 1:
@@ -249,7 +234,7 @@ class TableCreator:
 
         return row_buf.getvalue(), total_width
 
-    def generate_header_row(self, *, divider: Optional[str] = '-') -> str:
+    def generate_header_row(self, *, divider: Optional[str] = '-', fill_char: str = ' ') -> str:
         """
         Generate the header row
         :param divider: character that makes up the divider row below the header. Set this to None if you want no
@@ -269,7 +254,7 @@ class TableCreator:
                 raise (ValueError("Divider is an unprintable character"))
 
         data = [col.header for col in self.cols]
-        row_str, width = self._generate_row(data, is_header=True)
+        row_str, width = self._generate_row(data, is_header=True, fill_char=fill_char)
 
         # Check if we need a divider
         if divider is not None and width > 0:
@@ -277,12 +262,12 @@ class TableCreator:
 
         return row_str
 
-    def generate_data_row(self, data: List[Any]) -> str:
+    def generate_data_row(self, data: List[Any], *, fill_char: str = ' ') -> str:
         """
         Generate a table data row
         :param data: list of data the same length as cols
         :return: data row string
         :raises: ValueError if data isn't the same length as self.cols
         """
-        row_str, width = self._generate_row(data, is_header=False)
+        row_str, width = self._generate_row(data, is_header=False, fill_char=fill_char)
         return row_str

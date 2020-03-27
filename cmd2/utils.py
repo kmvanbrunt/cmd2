@@ -730,6 +730,13 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
 
     text_buf = io.StringIO()
 
+    # ANSI style sequences that may affect future lines will be cancelled by the fill_char's style.
+    # To avoid this, we save the state of a line's style so we can restore it when beginning the next line.
+    aggregate_styles = ''
+
+    # Save the ANSI style sequences in fill_char
+    fill_char_styles = get_styles_in_text(fill_char)
+
     for index, line in enumerate(lines):
         if index > 0:
             text_buf.write('\n')
@@ -765,10 +772,21 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
 
         # In cases where the fill character display width didn't divide evenly into
         # the gaps being filled, pad the remainder with spaces.
+        # TODO: Format the space using fill_char style
         left_fill += ' ' * (left_fill_width - ansi.style_aware_wcswidth(left_fill))
         right_fill += ' ' * (right_fill_width - ansi.style_aware_wcswidth(right_fill))
 
-        text_buf.write(left_fill + line + right_fill)
+        # Don't allow styles in fill_char and text to affect one another
+        if fill_char_styles or aggregate_styles:
+            left_fill = ansi.RESET_ALL + left_fill + ansi.RESET_ALL
+            right_fill = ansi.RESET_ALL + right_fill + ansi.RESET_ALL
+
+        # Write the line and restore any styles from previous lines
+        text_buf.write(left_fill + aggregate_styles + line + right_fill)
+
+        # Update the aggregate with styles in this line
+        line_styles = get_styles_in_text(line)
+        aggregate_styles += ''.join(line_styles.values())
 
     return text_buf.getvalue()
 
