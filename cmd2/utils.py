@@ -737,6 +737,20 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
     # Save the ANSI style sequences in fill_char
     fill_char_styles = get_styles_in_text(fill_char)
 
+    # Create a space with the same style as fill_char for cases in which
+    # fill_char does not divide evenly into the gap.
+    styled_space = ''
+    char_index = 0
+    while char_index < len(fill_char):
+        if char_index in fill_char_styles:
+            # Preserve this style in styled_space
+            styled_space += fill_char_styles[char_index]
+            char_index += len(fill_char_styles[char_index])
+        else:
+            # We've reached the visible fill_char. Replace it with a space.
+            styled_space += ' '
+            char_index += 1
+
     for index, line in enumerate(lines):
         if index > 0:
             text_buf.write('\n')
@@ -771,10 +785,9 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
         right_fill = (right_fill_width // fill_char_width) * fill_char
 
         # In cases where the fill character display width didn't divide evenly into
-        # the gaps being filled, pad the remainder with spaces.
-        # TODO: Format the space using fill_char style
-        left_fill += ' ' * (left_fill_width - ansi.style_aware_wcswidth(left_fill))
-        right_fill += ' ' * (right_fill_width - ansi.style_aware_wcswidth(right_fill))
+        # the gap being filled, pad the remainder with styled_space.
+        left_fill += styled_space * (left_fill_width - ansi.style_aware_wcswidth(left_fill))
+        right_fill += styled_space * (right_fill_width - ansi.style_aware_wcswidth(right_fill))
 
         # Don't allow styles in fill_char and text to affect one another
         if fill_char_styles or aggregate_styles:
@@ -908,9 +921,8 @@ def truncate_line(line: str, max_width: int, *, tab_width: int = 4) -> str:
         # Check if a style sequence is at this index. These don't count toward display width.
         if index in styles:
             truncated_buf.write(styles[index])
-            style_len = len(styles[index])
             styles.pop(index)
-            index += style_len
+            index += len(styles[index])
             continue
 
         char = line[index]

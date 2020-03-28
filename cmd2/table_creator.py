@@ -219,10 +219,9 @@ class TableCreator:
                 if line_index < len(cell.lines):
                     row_buf.write(cell.lines[line_index])
 
-                # Otherwise fill this cell with spaces
+                # Otherwise fill this cell with fill_char
                 else:
-                    # TODO: This may not divide evenly. Maybe consider bg color instead of fill_char.
-                    row_buf.write(fill_char * cell.width)
+                    row_buf.write(utils.align_left('', fill_char=fill_char, width=cell.width))
 
                 # Add padding if this is not the last column
                 if cell_index < len(cells) - 1:
