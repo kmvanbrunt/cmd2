@@ -767,6 +767,9 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
             text_buf.write(line)
             continue
 
+        # Get the styles in this line
+        line_styles = get_styles_in_text(line)
+
         # Calculate how wide each side of filling needs to be
         total_fill_width = width - line_width
 
@@ -790,7 +793,7 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
         right_fill += styled_space * (right_fill_width - ansi.style_aware_wcswidth(right_fill))
 
         # Don't allow styles in fill_char and text to affect one another
-        if fill_char_styles or aggregate_styles:
+        if fill_char_styles or aggregate_styles or line_styles:
             left_fill = ansi.RESET_ALL + left_fill + ansi.RESET_ALL
             right_fill = ansi.RESET_ALL + right_fill + ansi.RESET_ALL
 
@@ -798,7 +801,6 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
         text_buf.write(left_fill + aggregate_styles + line + right_fill)
 
         # Update the aggregate with styles in this line
-        line_styles = get_styles_in_text(line)
         aggregate_styles += ''.join(line_styles.values())
 
     return text_buf.getvalue()
