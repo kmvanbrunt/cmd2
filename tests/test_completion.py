@@ -1,9 +1,9 @@
 # coding=utf-8
 # flake8: noqa E302
 """
-Unit/functional testing for readline tab-completion functions in the cmd2.py module.
+Unit/functional testing for readline tab completion functions in the cmd2.py module.
 
-These are primarily tests related to readline completer functions which handle tab-completion of cmd2/cmd commands,
+These are primarily tests related to readline completer functions which handle tab completion of cmd2/cmd commands,
 file system paths, and shell commands.
 """
 # Python 3.5 had some regressions in the unitest.mock module, so use 3rd party mock if available
@@ -39,11 +39,11 @@ delimited_strs = \
 # Dictionary used with flag based completion functions
 flag_dict = \
     {
-        # Tab-complete food items after -f and --food flag in command line
+        # Tab complete food items after -f and --food flag in command line
         '-f': food_item_strs,
         '--food': food_item_strs,
 
-        # Tab-complete sport items after -s and --sport flag in command line
+        # Tab complete sport items after -s and --sport flag in command line
         '-s': sport_item_strs,
         '--sport': sport_item_strs,
     }
@@ -51,14 +51,14 @@ flag_dict = \
 # Dictionary used with index based completion functions
 index_dict = \
     {
-        1: food_item_strs,            # Tab-complete food items at index 1 in command line
-        2: sport_item_strs,           # Tab-complete sport items at index 2 in command line
+        1: food_item_strs,            # Tab complete food items at index 1 in command line
+        2: sport_item_strs,           # Tab complete sport items at index 2 in command line
     }
 
 
 class CompletionsExample(cmd2.Cmd):
     """
-    Example cmd2 application used to exercise tab-completion tests
+    Example cmd2 application used to exercise tab completion tests
     """
     def __init__(self):
         cmd2.Cmd.__init__(self, multiline_commands=['test_multiline'])
@@ -902,11 +902,6 @@ class RedirCompType(enum.Enum):
     DEFAULT = 3,
     NONE = 4
 
-    """   
-    fake > > 
-    fake | grep > file 
-    fake | grep > file > 
-    """
 
 @pytest.mark.parametrize('line, comp_type', [
     ('fake', RedirCompType.DEFAULT),
@@ -933,31 +928,40 @@ class RedirCompType(enum.Enum):
     ('fake > file >>', RedirCompType.NONE),
 ])
 def test_redirect_complete(cmd2_app, monkeypatch, line, comp_type):
-    shell_cmd_complete_mock = mock.MagicMock(name='shell_cmd_complete')
-    monkeypatch.setattr("cmd2.Cmd.shell_cmd_complete", shell_cmd_complete_mock)
+    # Test both cases of allow_redirection
+    cmd2_app.allow_redirection = True
+    for count in range(2):
+        shell_cmd_complete_mock = mock.MagicMock(name='shell_cmd_complete')
+        monkeypatch.setattr("cmd2.Cmd.shell_cmd_complete", shell_cmd_complete_mock)
 
-    path_complete_mock = mock.MagicMock(name='path_complete')
-    monkeypatch.setattr("cmd2.Cmd.path_complete", path_complete_mock)
+        path_complete_mock = mock.MagicMock(name='path_complete')
+        monkeypatch.setattr("cmd2.Cmd.path_complete", path_complete_mock)
 
-    default_complete_mock = mock.MagicMock(name='fake_completer')
+        default_complete_mock = mock.MagicMock(name='fake_completer')
 
-    text = ''
-    line = '{} {}'.format(line, text)
-    endidx = len(line)
-    begidx = endidx - len(text)
+        text = ''
+        line = '{} {}'.format(line, text)
+        endidx = len(line)
+        begidx = endidx - len(text)
 
-    cmd2_app._redirect_complete(text, line, begidx, endidx, default_complete_mock)
+        cmd2_app._redirect_complete(text, line, begidx, endidx, default_complete_mock)
 
-    if comp_type == RedirCompType.SHELL_CMD:
-        shell_cmd_complete_mock.assert_called_once()
-    elif comp_type == RedirCompType.PATH:
-        path_complete_mock.assert_called_once()
-    elif comp_type == RedirCompType.DEFAULT:
-        default_complete_mock.assert_called_once()
-    else:
-        shell_cmd_complete_mock.assert_not_called()
-        path_complete_mock.assert_not_called()
-        default_complete_mock.assert_not_called()
+        if comp_type == RedirCompType.SHELL_CMD:
+            shell_cmd_complete_mock.assert_called_once()
+        elif comp_type == RedirCompType.PATH:
+            path_complete_mock.assert_called_once()
+        elif comp_type == RedirCompType.DEFAULT:
+            default_complete_mock.assert_called_once()
+        else:
+            shell_cmd_complete_mock.assert_not_called()
+            path_complete_mock.assert_not_called()
+            default_complete_mock.assert_not_called()
+
+        # Do the next test with allow_redirection as False
+        cmd2_app.allow_redirection = False
+        if comp_type != RedirCompType.DEFAULT:
+            comp_type = RedirCompType.NONE
+
 
 def test_complete_set_value(cmd2_app):
     text = ''

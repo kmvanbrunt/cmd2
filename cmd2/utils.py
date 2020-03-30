@@ -72,6 +72,31 @@ def str_to_bool(val: str) -> bool:
     raise ValueError("must be True or False (case-insensitive)")
 
 
+class CompletionError(Exception):
+    """
+    Raised during tab completion operations to report any sort of error you want printed by the ArgparseCompleter
+    This can also be used just to display a message, even if it's not an error. ArgparseCompleter raises
+    CompletionErrors to display tab completion hints and sets apply_style to False so hints aren't colored
+    like error text.
+
+    Example use cases
+    - Reading a database to retrieve a tab completion data set failed
+    - A previous command line argument that determines the data set being completed is invalid
+    - Tab completion hints
+    """
+    def __init__(self, *args, apply_style: bool = True, **kwargs):
+        """
+        Initializer for CompletionError
+        :param apply_style: If True, then ansi.style_error will be applied to the message text when printed.
+                            Set to False in cases where the message text already has the desired style.
+                            Defaults to True.
+        """
+        self.apply_style = apply_style
+
+        # noinspection PyArgumentList
+        super().__init__(*args, **kwargs)
+
+
 class Settable:
     """Used to configure a cmd2 instance member to be settable via the set command in the CLI"""
     def __init__(self, name: str, val_type: Callable, description: str, *,
@@ -104,13 +129,13 @@ class Settable:
         :param choices: iterable of accepted values
         :param choices_function: function that provides choices for this argument
         :param choices_method: cmd2-app method that provides choices for this argument (See note below)
-        :param completer_function: tab-completion function that provides choices for this argument
-        :param completer_method: cmd2-app tab-completion method that provides choices
+        :param completer_function: tab completion function that provides choices for this argument
+        :param completer_method: cmd2-app tab completion method that provides choices
                                  for this argument (See note below)
 
         Note:
-        For choices_method and completer_method, do not set them to a bound method. This is because AutoCompleter
-        passes the self argument explicitly to these functions.
+        For choices_method and completer_method, do not set them to a bound method. This is because
+        ArgparseCompleter passes the self argument explicitly to these functions.
 
         Therefore instead of passing something like self.path_complete, pass cmd2.Cmd.path_complete.
         """
@@ -660,7 +685,7 @@ class RedirectionSavedState:
 def basic_complete(text: str, line: str, begidx: int, endidx: int, match_against: Iterable) -> List[str]:
     """
     Basic tab completion function that matches against a list of strings without considering line contents
-    or cursor position. The args required by this function are defined in the header of Pythons's cmd.py.
+    or cursor position. The args required by this function are defined in the header of Python's cmd.py.
 
     :param text: the string prefix we are attempting to match (all matches must begin with it)
     :param line: the current input line with leading whitespace removed
@@ -971,3 +996,30 @@ def get_styles_in_text(text: str) -> Dict[int, str]:
         start += len(match.group())
 
     return styles
+
+
+def categorize(func: Union[Callable, Iterable[Callable]], category: str) -> None:
+    """Categorize a function.
+
+    The help command output will group the passed function under the
+    specified category heading
+
+    :param func: function or list of functions to categorize
+    :param category: category to put it in
+
+    :Example:
+
+    >>> class MyApp(cmd2.Cmd):
+    >>>   def do_echo(self, arglist):
+    >>>     self.poutput(' '.join(arglist)
+    >>>
+    >>>   utils.categorize(do_echo, "Text Processing")
+
+    For an alternative approach to categorizing commands using a decorator, see
+    :func:`~cmd2.decorators.with_category`
+    """
+    if isinstance(func, Iterable):
+        for item in func:
+            setattr(item, constants.CMD_ATTR_HELP_CATEGORY, category)
+    else:
+        setattr(func, constants.CMD_ATTR_HELP_CATEGORY, category)

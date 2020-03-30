@@ -20,7 +20,7 @@ except ImportError:
     from unittest import mock
 
 import cmd2
-from cmd2 import ansi, clipboard, constants, plugin, utils, COMMAND_NAME
+from cmd2 import ansi, clipboard, constants, exceptions, plugin, utils, COMMAND_NAME
 from .conftest import (run_cmd, normalize, verify_help_text, HELP_HISTORY, SHORTCUTS_TXT, SHOW_TXT,
                        SHOW_LONG, complete_tester, odd_file_names)
 
@@ -203,16 +203,30 @@ def test_base_shell(base_app, monkeypatch):
     assert out == []
     assert m.called
 
+def test_shell_last_result(base_app):
+    base_app.last_result = None
+    run_cmd(base_app, 'shell fake')
+    assert base_app.last_result is not None
 
 def test_base_py(base_app):
-    # Create a variable and make sure we can see it
-    out, err = run_cmd(base_app, 'py qqq=3')
-    assert not out
+    # Make sure py can't edit Cmd.py_locals. It used to be that cmd2 was passing its py_locals
+    # dictionary to the py environment instead of a shallow copy.
+    base_app.py_locals['test_var'] = 5
+    out, err = run_cmd(base_app, 'py del[locals()["test_var"]]')
+    assert not out and not err
+    assert base_app.py_locals['test_var'] == 5
 
-    out, err = run_cmd(base_app, 'py print(qqq)')
-    assert out[0].rstrip() == '3'
+    out, err = run_cmd(base_app, 'py print(test_var)')
+    assert out[0].rstrip() == '5'
 
-    # Add a more complex statement
+    # Place an editable object in py_locals. Since we make a shallow copy of py_locals,
+    # this object should be editable from the py environment.
+    base_app.py_locals['my_list'] = []
+    out, err = run_cmd(base_app, 'py my_list.append(2)')
+    assert not out and not err
+    assert base_app.py_locals['my_list'][0] == 2
+
+    # Try a print statement
     out, err = run_cmd(base_app, 'py print("spaces" + " in this " + "command")')
     assert out[0].rstrip() == 'spaces in this command'
 
@@ -361,6 +375,28 @@ set allow_style Never""" % (prefilepath, postfilepath)
 
     out, err = run_cmd(base_app, 'history -s')
     assert out == normalize(expected)
+
+def test_runcmds_plus_hooks_ctrl_c(base_app, capsys):
+    """Test Ctrl-C while in runcmds_plus_hooks"""
+    import types
+
+    def do_keyboard_interrupt(self, _):
+        raise KeyboardInterrupt('Interrupting this command')
+    setattr(base_app, 'do_keyboard_interrupt', types.MethodType(do_keyboard_interrupt, base_app))
+
+    # Default behavior is to stop command loop on Ctrl-C
+    base_app.history.clear()
+    base_app.runcmds_plus_hooks(['help', 'keyboard_interrupt', 'shortcuts'])
+    out, err = capsys.readouterr()
+    assert err.startswith("Interrupting this command")
+    assert len(base_app.history) == 2
+
+    # Ctrl-C should not stop command loop in this case
+    base_app.history.clear()
+    base_app.runcmds_plus_hooks(['help', 'keyboard_interrupt', 'shortcuts'], stop_on_keyboard_interrupt=False)
+    out, err = capsys.readouterr()
+    assert not err
+    assert len(base_app.history) == 3
 
 def test_relative_run_script(base_app, request):
     test_dir = os.path.dirname(request.module.__file__)
@@ -1248,7 +1284,7 @@ def multiline_app():
     return app
 
 def test_multiline_complete_empty_statement_raises_exception(multiline_app):
-    with pytest.raises(cmd2.EmptyStatement):
+    with pytest.raises(exceptions.EmptyStatement):
         multiline_app._complete_statement('')
 
 def test_multiline_complete_statement_without_terminator(multiline_app):

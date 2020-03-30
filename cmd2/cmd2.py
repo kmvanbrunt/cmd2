@@ -47,13 +47,14 @@ from . import ansi
 from . import constants
 from . import plugin
 from . import utils
-from .argparse_custom import CompletionError, CompletionItem, DEFAULT_ARGUMENT_PARSER
+from .argparse_custom import CompletionItem, DEFAULT_ARGUMENT_PARSER
 from .clipboard import can_clip, get_paste_buffer, write_to_paste_buffer
 from .decorators import with_argparser
+from .exceptions import Cmd2ArgparseError, Cmd2ShlexError, EmbeddedConsoleExit, EmptyStatement
 from .history import History, HistoryItem
 from .parsing import StatementParser, Statement, Macro, MacroArg, shlex_split
 from .rl_utils import rl_type, RlType, rl_get_point, rl_set_prompt, vt100_support, rl_make_safe_prompt, rl_warning
-from .utils import Settable
+from .utils import CompletionError, Settable
 
 # Set up readline
 if rl_type == RlType.NONE:  # pragma: no cover
@@ -106,16 +107,6 @@ class _SavedCmd2Env:
         self.sys_stdin = None
 
 
-class EmbeddedConsoleExit(SystemExit):
-    """Custom exception class for use with the py command."""
-    pass
-
-
-class EmptyStatement(Exception):
-    """Custom exception class for handling behavior when the user just presses <Enter>."""
-    pass
-
-
 # Contains data about a disabled command which is used to restore its original functions when the command is enabled
 DisabledCommand = namedtuple('DisabledCommand', ['command_function', 'help_function', 'completer_function'])
 
@@ -144,28 +135,41 @@ class Cmd(cmd.Cmd):
                  allow_cli_args: bool = True, transcript_files: Optional[List[str]] = None,
                  allow_redirection: bool = True, multiline_commands: Optional[List[str]] = None,
                  terminators: Optional[List[str]] = None, shortcuts: Optional[Dict[str, str]] = None) -> None:
-        """An easy but powerful framework for writing line-oriented command interpreters, extends Python's cmd package.
+        """An easy but powerful framework for writing line-oriented command
+        interpreters. Extends Python's cmd package.
 
         :param completekey: readline name of a completion key, default to Tab
         :param stdin: alternate input file object, if not specified, sys.stdin is used
         :param stdout: alternate output file object, if not specified, sys.stdout is used
         :param persistent_history_file: file path to load a persistent cmd2 command history from
-        :param persistent_history_length: max number of history items to write to the persistent history file
+        :param persistent_history_length: max number of history items to write
+                                          to the persistent history file
         :param startup_script: file path to a script to execute at startup
         :param use_ipython: should the "ipy" command be included for an embedded IPython shell
-        :param allow_cli_args: if True, then cmd2 will process command line arguments as either
-                               commands to be run or, if -t is specified, transcript files to run.
-                               This should be set to False if your application parses its own arguments.
-        :param transcript_files: allow running transcript tests when allow_cli_args is False
-        :param allow_redirection: should output redirection and pipes be allowed. this is only a security setting
-                                  and does not alter parsing behavior.
+        :param allow_cli_args: if ``True``, then :meth:`cmd2.Cmd.__init__` will process command
+                               line arguments as either commands to be run or, if ``-t`` or
+                               ``--test`` are given, transcript files to run. This should be
+                               set to ``False`` if your application parses its own command line
+                               arguments.
+        :param transcript_files: pass a list of transcript files to be run on initialization.
+                                 This allows running transcript tests when ``allow_cli_args``
+                                 is ``False``. If ``allow_cli_args`` is ``True`` this parameter
+                                 is ignored.
+        :param allow_redirection: If ``False``, prevent output redirection and piping to shell
+                                  commands. This parameter prevents redirection and piping, but
+                                  does not alter parsing behavior. A user can still type
+                                  redirection and piping tokens, and they will be parsed as such
+                                  but they won't do anything.
         :param multiline_commands: list of commands allowed to accept multi-line input
-        :param terminators: list of characters that terminate a command. These are mainly intended for terminating
-                            multiline commands, but will also terminate single-line commands. If not supplied, then
-                            defaults to semicolon. If your app only contains single-line commands and you want
-                            terminators to be treated as literals by the parser, then set this to an empty list.
-        :param shortcuts: dictionary containing shortcuts for commands. If not supplied, then defaults to
-                          constants.DEFAULT_SHORTCUTS.
+        :param terminators: list of characters that terminate a command. These are mainly
+                            intended for terminating multiline commands, but will also
+                            terminate single-line commands. If not supplied, the default
+                            is a semicolon. If your app only contains single-line commands
+                            and you want terminators to be treated as literals by the parser,
+                            then set this to an empty list.
+        :param shortcuts: dictionary containing shortcuts for commands. If not supplied,
+                          then defaults to constants.DEFAULT_SHORTCUTS. If you do not want
+                          any shortcuts, pass an empty dictionary.
         """
         # If use_ipython is False, make sure the ipy command isn't available in this instance
         if not use_ipython:
@@ -183,7 +187,7 @@ class Cmd(cmd.Cmd):
 
         # Attributes which should NOT be dynamically settable via the set command at runtime
         self.default_to_shell = False  # Attempt to run unrecognized commands as shell commands
-        self.quit_on_sigint = False  # Quit the loop on interrupt instead of just resetting prompt
+        self.quit_on_sigint = False  # Ctrl-C at the prompt will quit the program instead of just resetting prompt
         self.allow_redirection = allow_redirection  # Security setting to prevent redirection of stdout
 
         # Attributes which ARE dynamically settable via the set command at runtime
@@ -348,7 +352,7 @@ class Cmd(cmd.Cmd):
         self.default_sort_key = Cmd.ALPHABETICAL_SORT_KEY
 
         ############################################################################################################
-        # The following variables are used by tab-completion functions. They are reset each time complete() is run
+        # The following variables are used by tab completion functions. They are reset each time complete() is run
         # in _reset_completion_defaults() and it is up to completer functions to set them before returning results.
         ############################################################################################################
 
@@ -360,14 +364,14 @@ class Cmd(cmd.Cmd):
         # will be added if there is an unmatched opening quote
         self.allow_closing_quote = True
 
-        # An optional header that prints above the tab-completion suggestions
+        # An optional header that prints above the tab completion suggestions
         self.completion_header = ''
 
         # Used by complete() for readline tab completion
         self.completion_matches = []
 
         # Use this list if you are completing strings that contain a common delimiter and you only want to
-        # display the final portion of the matches as the tab-completion suggestions. The full matches
+        # display the final portion of the matches as the tab completion suggestions. The full matches
         # still must be returned from your completer function. For an example, look at path_complete()
         # which uses this to show only the basename of paths as the suggestions. delimiter_complete() also
         # populates this list.
@@ -383,16 +387,18 @@ class Cmd(cmd.Cmd):
 
     def add_settable(self, settable: Settable) -> None:
         """
-        Convenience method to add a settable parameter to self.settables
+        Convenience method to add a settable parameter to ``self.settables``
+
         :param settable: Settable object being added
         """
         self.settables[settable.name] = settable
 
     def remove_settable(self, name: str) -> None:
         """
-        Convenience method for removing a settable parameter from self.settables
+        Convenience method for removing a settable parameter from ``self.settables``
+
         :param name: name of the settable being removed
-        :raises: KeyError if the no Settable matches this name
+        :raises: KeyError if the Settable matches this name
         """
         try:
             del self.settables[name]
@@ -400,7 +406,7 @@ class Cmd(cmd.Cmd):
             raise KeyError(name + " is not a settable parameter")
 
     def build_settables(self):
-        """Populates self.add_settable with parameters that can be edited via the set command"""
+        """Create the dictionary of user-settable parameters"""
         self.add_settable(Settable('allow_style', str,
                                    'Allow ANSI text style sequences in output (valid values: '
                                    '{}, {}, {})'.format(ansi.STYLE_TERMINAL,
@@ -948,7 +954,7 @@ class Cmd(cmd.Cmd):
         # Build display_matches and add a slash to directories
         for index, cur_match in enumerate(matches):
 
-            # Display only the basename of this path in the tab-completion suggestions
+            # Display only the basename of this path in the tab completion suggestions
             self.display_matches.append(os.path.basename(cur_match))
 
             # Add a separator after directories if the next character isn't already a separator
@@ -1050,8 +1056,8 @@ class Cmd(cmd.Cmd):
                         in_pipe = False
                         in_file_redir = True
 
-                # Not a redirection token
-                else:
+                # Only tab complete after redirection tokens if redirection is allowed
+                elif self.allow_redirection:
                     do_shell_completion = False
                     do_path_completion = False
 
@@ -1263,7 +1269,7 @@ class Cmd(cmd.Cmd):
 
                 if func is not None and argparser is not None:
                     import functools
-                    compfunc = functools.partial(self._autocomplete_default,
+                    compfunc = functools.partial(self._complete_argparse_command,
                                                  argparser=argparser,
                                                  preserve_quotes=getattr(func, constants.CMD_ATTR_PRESERVE_QUOTES))
                 else:
@@ -1416,20 +1422,30 @@ class Cmd(cmd.Cmd):
             except IndexError:
                 return None
 
+        except CompletionError as ex:
+            # Don't print error and redraw the prompt unless the error has length
+            err_str = str(ex)
+            if err_str:
+                if ex.apply_style:
+                    err_str = ansi.style_error(err_str)
+                ansi.style_aware_write(sys.stdout, '\n' + err_str + '\n')
+                rl_force_redisplay()
+            return None
         except Exception as e:
             # Insert a newline so the exception doesn't print in the middle of the command line being tab completed
             self.perror()
             self.pexcept(e)
+            rl_force_redisplay()
             return None
 
-    def _autocomplete_default(self, text: str, line: str, begidx: int, endidx: int, *,
-                              argparser: argparse.ArgumentParser, preserve_quotes: bool) -> List[str]:
-        """Default completion function for argparse commands"""
-        from .argparse_completer import AutoCompleter
-        completer = AutoCompleter(argparser, self)
+    def _complete_argparse_command(self, text: str, line: str, begidx: int, endidx: int, *,
+                                   argparser: argparse.ArgumentParser, preserve_quotes: bool) -> List[str]:
+        """Completion function for argparse commands"""
+        from .argparse_completer import ArgparseCompleter
+        completer = ArgparseCompleter(argparser, self)
         tokens, raw_tokens = self.tokens_for_completion(line, begidx, endidx)
 
-        # To have tab-completion parsing match command line parsing behavior,
+        # To have tab completion parsing match command line parsing behavior,
         # use preserve_quotes to determine if we parse the quoted or unquoted tokens.
         tokens_to_parse = raw_tokens if preserve_quotes else tokens
         return completer.complete_command(tokens_to_parse, text, line, begidx, endidx)
@@ -1507,12 +1523,53 @@ class Cmd(cmd.Cmd):
             raise KeyboardInterrupt("Got a keyboard interrupt")
 
     def precmd(self, statement: Statement) -> Statement:
-        """Hook method executed just before the command is processed by ``onecmd()`` and after adding it to the history.
+        """Hook method executed just before the command is executed by
+        :meth:`~cmd2.Cmd.onecmd` and after adding it to history.
 
         :param statement: subclass of str which also contains the parsed input
         :return: a potentially modified version of the input Statement object
+
+        See :meth:`~cmd2.Cmd.register_postparsing_hook` and
+        :meth:`~cmd2.Cmd.register_precmd_hook` for more robust ways
+        to run hooks before the command is executed. See
+        :ref:`features/hooks:Postparsing Hooks` and
+        :ref:`features/hooks:Precommand Hooks` for more information.
         """
         return statement
+
+    def postcmd(self, stop: bool, statement: Statement) -> bool:
+        """Hook method executed just after a command is executed by
+        :meth:`~cmd2.Cmd.onecmd`.
+
+        :param stop: return `True` to request the command loop terminate
+        :param statement: subclass of str which also contains the parsed input
+
+        See :meth:`~cmd2.Cmd.register_postcmd_hook` and :meth:`~cmd2.Cmd.register_cmdfinalization_hook` for more robust ways
+        to run hooks after the command is executed. See
+        :ref:`features/hooks:Postcommand Hooks` and
+        :ref:`features/hooks:Command Finalization Hooks` for more information.
+        """
+        return stop
+
+    def preloop(self):
+        """Hook method executed once when the :meth:`~.cmd2.Cmd.cmdloop()`
+        method is called.
+
+        See :meth:`~cmd2.Cmd.register_preloop_hook` for a more robust way
+        to run hooks before the command loop begins. See
+        :ref:`features/hooks:Application Lifecycle Hooks` for more information.
+        """
+        pass
+
+    def postloop(self):
+        """Hook method executed once when the :meth:`~.cmd2.Cmd.cmdloop()`
+        method is about to return.
+
+        See :meth:`~cmd2.Cmd.register_postloop_hook` for a more robust way
+        to run hooks after the command loop completes. See
+        :ref:`features/hooks:Application Lifecycle Hooks` for more information.
+        """
+        pass
 
     def parseline(self, line: str) -> Tuple[str, str, str]:
         """Parse the line into a command name and a string containing the arguments.
@@ -1527,11 +1584,15 @@ class Cmd(cmd.Cmd):
         statement = self.statement_parser.parse_command_only(line)
         return statement.command, statement.args, statement.command_and_args
 
-    def onecmd_plus_hooks(self, line: str, *, add_to_history: bool = True, py_bridge_call: bool = False) -> bool:
+    def onecmd_plus_hooks(self, line: str, *, add_to_history: bool = True,
+                          raise_keyboard_interrupt: bool = False, py_bridge_call: bool = False) -> bool:
         """Top-level function called by cmdloop() to handle parsing a line and running the command and all of its hooks.
 
         :param line: command line to run
         :param add_to_history: If True, then add this command to history. Defaults to True.
+        :param raise_keyboard_interrupt: if True, then KeyboardInterrupt exceptions will be raised. This is used when
+                                         running commands in a loop to be able to stop the whole loop and not just
+                                         the current command. Defaults to False.
         :param py_bridge_call: This should only ever be set to True by PyBridge to signify the beginning
                                of an app() call from Python. It is used to enable/disable the storage of the
                                command's stdout.
@@ -1542,12 +1603,10 @@ class Cmd(cmd.Cmd):
         stop = False
         try:
             statement = self._input_line_to_statement(line)
-        except EmptyStatement:
+        except (EmptyStatement, Cmd2ShlexError) as ex:
+            if isinstance(ex, Cmd2ShlexError):
+                self.perror("Invalid syntax: {}".format(ex))
             return self._run_cmdfinalization_hooks(stop, None)
-        except ValueError as ex:
-            # If shlex.split failed on syntax, let user know what's going on
-            self.pexcept("Invalid syntax: {}".format(ex))
-            return stop
 
         # now that we have a statement, run it with all the hooks
         try:
@@ -1626,14 +1685,18 @@ class Cmd(cmd.Cmd):
                     if py_bridge_call:
                         # Stop saving command's stdout before command finalization hooks run
                         self.stdout.pause_storage = True
-
-        except EmptyStatement:
-            # don't do anything, but do allow command finalization hooks to run
+        except KeyboardInterrupt as ex:
+            if raise_keyboard_interrupt:
+                raise ex
+        except (Cmd2ArgparseError, EmptyStatement):
+            # Don't do anything, but do allow command finalization hooks to run
             pass
         except Exception as ex:
             self.pexcept(ex)
         finally:
-            return self._run_cmdfinalization_hooks(stop, statement)
+            stop = self._run_cmdfinalization_hooks(stop, statement)
+
+        return stop
 
     def _run_cmdfinalization_hooks(self, stop: bool, statement: Optional[Statement]) -> bool:
         """Run the command finalization hooks"""
@@ -1656,13 +1719,16 @@ class Cmd(cmd.Cmd):
         except Exception as ex:
             self.pexcept(ex)
 
-    def runcmds_plus_hooks(self, cmds: List[Union[HistoryItem, str]], *, add_to_history: bool = True) -> bool:
+    def runcmds_plus_hooks(self, cmds: List[Union[HistoryItem, str]], *, add_to_history: bool = True,
+                           stop_on_keyboard_interrupt: bool = True) -> bool:
         """
         Used when commands are being run in an automated fashion like text scripts or history replays.
         The prompt and command line for each command will be printed if echo is True.
 
         :param cmds: commands to run
         :param add_to_history: If True, then add these commands to history. Defaults to True.
+        :param stop_on_keyboard_interrupt: stop command loop if Ctrl-C is pressed instead of just
+                                           moving to the next command. Defaults to True.
         :return: True if running of commands should stop
         """
         for line in cmds:
@@ -1672,8 +1738,14 @@ class Cmd(cmd.Cmd):
             if self.echo:
                 self.poutput('{}{}'.format(self.prompt, line))
 
-            if self.onecmd_plus_hooks(line, add_to_history=add_to_history):
-                return True
+            try:
+                if self.onecmd_plus_hooks(line, add_to_history=add_to_history,
+                                          raise_keyboard_interrupt=stop_on_keyboard_interrupt):
+                    return True
+            except KeyboardInterrupt as e:
+                if stop_on_keyboard_interrupt:
+                    self.perror(e)
+                    break
 
         return False
 
@@ -1687,6 +1759,8 @@ class Cmd(cmd.Cmd):
 
         :param line: the line being parsed
         :return: the completed Statement
+        :raises: Cmd2ShlexError if a shlex error occurs (e.g. No closing quotation)
+                 EmptyStatement when the resulting Statement is blank
         """
         while True:
             try:
@@ -1698,7 +1772,7 @@ class Cmd(cmd.Cmd):
                     # it's not a multiline command, but we parsed it ok
                     # so we are done
                     break
-            except ValueError:
+            except Cmd2ShlexError:
                 # we have unclosed quotation marks, lets parse only the command
                 # and see if it's a multiline
                 statement = self.statement_parser.parse_command_only(line)
@@ -1735,7 +1809,7 @@ class Cmd(cmd.Cmd):
                 self._at_continuation_prompt = False
 
         if not statement.command:
-            raise EmptyStatement()
+            raise EmptyStatement
         return statement
 
     def _input_line_to_statement(self, line: str) -> Statement:
@@ -1744,6 +1818,8 @@ class Cmd(cmd.Cmd):
 
         :param line: the line being parsed
         :return: parsed command line as a Statement
+        :raises: Cmd2ShlexError if a shlex error occurs (e.g. No closing quotation)
+                 EmptyStatement when the resulting Statement is blank
         """
         used_macros = []
         orig_line = None
@@ -1762,7 +1838,7 @@ class Cmd(cmd.Cmd):
                 used_macros.append(statement.command)
                 line = self._resolve_macro(statement)
                 if line is None:
-                    raise EmptyStatement()
+                    raise EmptyStatement
             else:
                 break
 
@@ -1957,7 +2033,14 @@ class Cmd(cmd.Cmd):
     def cmd_func(self, command: str) -> Optional[Callable]:
         """
         Get the function for a command
+
         :param command: the name of the command
+
+        :Example:
+
+        >>> helpfunc = self.cmd_func('help')
+
+        helpfunc now contains a reference to the ``do_help`` method
         """
         func_name = self._cmd_func_name(command)
         if func_name:
@@ -2560,11 +2643,11 @@ class Cmd(cmd.Cmd):
         if func is None or argparser is None:
             return []
 
-        # Combine the command and its subcommand tokens for the AutoCompleter
+        # Combine the command and its subcommand tokens for the ArgparseCompleter
         tokens = [command] + arg_tokens['subcommands']
 
-        from .argparse_completer import AutoCompleter
-        completer = AutoCompleter(argparser, self)
+        from .argparse_completer import ArgparseCompleter
+        completer = ArgparseCompleter(argparser, self)
         return completer.complete_subcommand_help(tokens, text, line, begidx, endidx)
 
     help_parser = DEFAULT_ARGUMENT_PARSER(description="List available commands or provide "
@@ -2576,7 +2659,7 @@ class Cmd(cmd.Cmd):
     help_parser.add_argument('-v', '--verbose', action='store_true',
                              help="print a list of all commands with descriptions of each")
 
-    # Get rid of cmd's complete_help() functions so AutoCompleter will complete the help command
+    # Get rid of cmd's complete_help() functions so ArgparseCompleter will complete the help command
     if getattr(cmd.Cmd, 'complete_help', None) is not None:
         delattr(cmd.Cmd, 'complete_help')
 
@@ -2594,8 +2677,8 @@ class Cmd(cmd.Cmd):
 
             # If the command function uses argparse, then use argparse's help
             if func is not None and argparser is not None:
-                from .argparse_completer import AutoCompleter
-                completer = AutoCompleter(argparser, self)
+                from .argparse_completer import ArgparseCompleter
+                completer = ArgparseCompleter(argparser, self)
                 tokens = [args.command] + args.subcommands
 
                 # Set end to blank so the help output matches how it looks when "command -h" is used
@@ -2829,7 +2912,7 @@ class Cmd(cmd.Cmd):
         settable_parser = DEFAULT_ARGUMENT_PARSER(parents=[Cmd.set_parser_parent])
 
         # Settables with choices list the values of those choices instead of the arg name
-        # in help text and this shows in tab-completion hints. Set metavar to avoid this.
+        # in help text and this shows in tab completion hints. Set metavar to avoid this.
         arg_name = 'value'
         settable_parser.add_argument(arg_name, metavar=arg_name, help=settable.description,
                                      choices=settable.choices,
@@ -2838,8 +2921,8 @@ class Cmd(cmd.Cmd):
                                      completer_function=settable.completer_function,
                                      completer_method=settable.completer_method)
 
-        from .argparse_completer import AutoCompleter
-        completer = AutoCompleter(settable_parser, self)
+        from .argparse_completer import ArgparseCompleter
+        completer = ArgparseCompleter(settable_parser, self)
 
         # Use raw_tokens since quotes have been preserved
         _, raw_tokens = self.tokens_for_completion(line, begidx, endidx)
@@ -2858,11 +2941,8 @@ class Cmd(cmd.Cmd):
 
     # Create the parser for the set command
     set_parser = DEFAULT_ARGUMENT_PARSER(parents=[set_parser_parent])
-
-    # Suppress tab-completion hints for this field. The completer method is going to create an
-    # AutoCompleter based on the actual parameter being completed and we only want that hint printing.
     set_parser.add_argument('value', nargs=argparse.OPTIONAL, help='new value for settable',
-                            completer_method=complete_set_value, suppress_tab_hint=True)
+                            completer_method=complete_set_value)
 
     # Preserve quotes so users can pass in quoted empty strings and flags (e.g. -h) as the value
     @with_argparser(set_parser, preserve_quotes=True)
@@ -2951,6 +3031,9 @@ class Cmd(cmd.Cmd):
 
             proc_reader = utils.ProcReader(proc, self.stdout, sys.stderr)
             proc_reader.wait()
+
+            # Save the return code of the application for use in a pyscript
+            self.last_result = proc.returncode
 
     @staticmethod
     def _reset_py_display() -> None:
@@ -3093,8 +3176,7 @@ class Cmd(cmd.Cmd):
 
     # This is a hidden flag for telling do_py to run a pyscript. It is intended only to be used by run_pyscript
     # after it sets up sys.argv for the script being run. When this flag is present, it takes precedence over all
-    # other arguments. run_pyscript uses this method instead of "py run('file')" because file names with
-    # 2 or more consecutive spaces cause issues with our parser, which isn't meant to parse Python statements.
+    # other arguments.
     py_parser.add_argument('--pyscript', help=argparse.SUPPRESS)
 
     # Preserve quotes since we are passing these strings to Python
@@ -3104,65 +3186,69 @@ class Cmd(cmd.Cmd):
         Enter an interactive Python shell
         :return: True if running of commands should stop
         """
+        def py_quit():
+            """Function callable from the interactive Python console to exit that environment"""
+            raise EmbeddedConsoleExit
+
         from .py_bridge import PyBridge
+        py_bridge = PyBridge(self)
+        saved_sys_path = None
+
         if self.in_pyscript():
             err = "Recursively entering interactive Python consoles is not allowed."
             self.perror(err)
             return
 
-        py_bridge = PyBridge(self)
-        py_code_to_run = ''
-
-        # Handle case where we were called by run_pyscript
-        if args.pyscript:
-            args.pyscript = utils.strip_quotes(args.pyscript)
-
-            # Run the script - use repr formatting to escape things which
-            # need to be escaped to prevent issues on Windows
-            py_code_to_run = 'run({!r})'.format(args.pyscript)
-
-        elif args.command:
-            py_code_to_run = args.command
-            if args.remainder:
-                py_code_to_run += ' ' + ' '.join(args.remainder)
-
-            # Set cmd_echo to True so PyBridge statements like: py app('help')
-            # run at the command line will print their output.
-            py_bridge.cmd_echo = True
-
         try:
             self._in_py = True
+            py_code_to_run = ''
 
-            def py_run(filename: str):
-                """Run a Python script file in the interactive console.
-                :param filename: filename of script file to run
-                """
-                expanded_filename = os.path.expanduser(filename)
+            # Make a copy of self.py_locals for the locals dictionary in the Python environment we are creating.
+            # This is to prevent pyscripts from editing it. (e.g. locals().clear()). It also ensures a pyscript's
+            # environment won't be filled with data from a previously run pyscript. Only make a shallow copy since
+            # it's OK for py_locals to contain objects which are editable in a pyscript.
+            localvars = dict(self.py_locals)
+            localvars[self.py_bridge_name] = py_bridge
+            localvars['quit'] = py_quit
+            localvars['exit'] = py_quit
+
+            if self.self_in_py:
+                localvars['self'] = self
+
+            # Handle case where we were called by run_pyscript
+            if args.pyscript:
+                # Read the script file
+                expanded_filename = os.path.expanduser(utils.strip_quotes(args.pyscript))
 
                 try:
                     with open(expanded_filename) as f:
-                        interp.runcode(f.read())
+                        py_code_to_run = f.read()
                 except OSError as ex:
                     self.pexcept("Error reading script file '{}': {}".format(expanded_filename, ex))
+                    return
 
-            def py_quit():
-                """Function callable from the interactive Python console to exit that environment"""
-                raise EmbeddedConsoleExit
+                localvars['__name__'] = '__main__'
+                localvars['__file__'] = expanded_filename
 
-            # Set up Python environment
-            self.py_locals[self.py_bridge_name] = py_bridge
-            self.py_locals['run'] = py_run
-            self.py_locals['quit'] = py_quit
-            self.py_locals['exit'] = py_quit
+                # Place the script's directory at sys.path[0] just as Python does when executing a script
+                saved_sys_path = list(sys.path)
+                sys.path.insert(0, os.path.dirname(os.path.abspath(expanded_filename)))
 
-            if self.self_in_py:
-                self.py_locals['self'] = self
-            elif 'self' in self.py_locals:
-                del self.py_locals['self']
+            else:
+                # This is the default name chosen by InteractiveConsole when no locals are passed in
+                localvars['__name__'] = '__console__'
 
-            localvars = self.py_locals
+                if args.command:
+                    py_code_to_run = args.command
+                    if args.remainder:
+                        py_code_to_run += ' ' + ' '.join(args.remainder)
+
+                    # Set cmd_echo to True so PyBridge statements like: py app('help')
+                    # run at the command line will print their output.
+                    py_bridge.cmd_echo = True
+
+            # Create the Python interpreter
             interp = InteractiveConsole(locals=localvars)
-            interp.runcode('import sys, os;sys.path.insert(0, os.getcwd())')
 
             # Check if we are running Python code
             if py_code_to_run:
@@ -3177,8 +3263,7 @@ class Cmd(cmd.Cmd):
             else:
                 cprt = 'Type "help", "copyright", "credits" or "license" for more information.'
                 instructions = ('End with `Ctrl-D` (Unix) / `Ctrl-Z` (Windows), `quit()`, `exit()`.\n'
-                                'Non-Python commands can be issued with: {}("your command")\n'
-                                'Run Python code from external script files with: run("script.py")'
+                                'Non-Python commands can be issued with: {}("your command")'
                                 .format(self.py_bridge_name))
 
                 saved_cmd2_env = None
@@ -3201,11 +3286,11 @@ class Cmd(cmd.Cmd):
                         if saved_cmd2_env is not None:
                             self._restore_cmd2_env(saved_cmd2_env)
 
-        except KeyboardInterrupt:
-            pass
-
         finally:
-            self._in_py = False
+            with self.sigint_protection:
+                if saved_sys_path is not None:
+                    sys.path = saved_sys_path
+                self._in_py = False
 
         return py_bridge.stop
 
@@ -3231,8 +3316,6 @@ class Cmd(cmd.Cmd):
             if selection != 'Yes':
                 return
 
-        py_return = False
-
         # Save current command line arguments
         orig_args = sys.argv
 
@@ -3242,9 +3325,6 @@ class Cmd(cmd.Cmd):
 
             # noinspection PyTypeChecker
             py_return = self.do_py('--pyscript {}'.format(utils.quote_string(args.script_path)))
-
-        except KeyboardInterrupt:
-            pass
 
         finally:
             # Restore command line arguments to original state
@@ -3558,7 +3638,12 @@ class Cmd(cmd.Cmd):
                 self.stdout = utils.StdSim(self.stdout)
 
                 # then run the command and let the output go into our buffer
-                stop = self.onecmd_plus_hooks(history_item)
+                try:
+                    stop = self.onecmd_plus_hooks(history_item, raise_keyboard_interrupt=True)
+                except KeyboardInterrupt as e:
+                    self.perror(e)
+                    stop = True
+
                 commands_run += 1
 
                 # add the regex-escaped output to the transcript

@@ -7,7 +7,7 @@ import attr
 import pytest
 
 import cmd2
-from cmd2 import constants, utils
+from cmd2 import constants, exceptions, utils
 from cmd2.parsing import StatementParser, shlex_split
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def test_tokenize(parser, line, tokens):
     assert tokens_to_test == tokens
 
 def test_tokenize_unclosed_quotes(parser):
-    with pytest.raises(ValueError):
+    with pytest.raises(exceptions.Cmd2ShlexError):
         _ = parser.tokenize('command with "unclosed quotes')
 
 @pytest.mark.parametrize('tokens,command,args', [
@@ -583,15 +583,15 @@ def test_parse_redirect_to_unicode_filename(parser):
     assert statement.output_to == 'café'
 
 def test_parse_unclosed_quotes(parser):
-    with pytest.raises(ValueError):
+    with pytest.raises(exceptions.Cmd2ShlexError):
         _ = parser.tokenize("command with 'unclosed quotes")
 
 def test_empty_statement_raises_exception():
     app = cmd2.Cmd()
-    with pytest.raises(cmd2.EmptyStatement):
+    with pytest.raises(exceptions.EmptyStatement):
         app._complete_statement('')
 
-    with pytest.raises(cmd2.EmptyStatement):
+    with pytest.raises(exceptions.EmptyStatement):
         app._complete_statement(' ')
 
 @pytest.mark.parametrize('line,command,args', [
