@@ -89,8 +89,8 @@ def bordered_table():
     ansi_print(table_bottom)
 
 
-def colored_table():
-    """Create a table with borders around the table and background color used to separate rows"""
+def alternating_table():
+    """Create a table with borders around the table and alternating background color used to separate rows"""
     # Made the headers bold
     for col in columns:
         col.header = ansi.style(col.header, bold=True)
@@ -106,16 +106,19 @@ def colored_table():
 
     # Add each row
     for index, data in enumerate(data_rows):
-        space = ' '
+        fill_char = ' '
+        pre_line = "║ "
+        inter_cell = " │ "
+        post_line = " ║"
+
         if index % 2 != 0:
-            space = style_bg(space)
+            fill_char = style_bg(fill_char)
+            pre_line = style_bg(pre_line)
+            inter_cell = style_bg(inter_cell)
+            post_line = style_bg(post_line)
+
             for col_index, col in enumerate(data):
                 data[col_index] = style_bg(col)
-
-        fill_char = space
-        pre_line = "║" + space
-        inter_cell = space + "│" + space
-        post_line = space + "║"
 
         row = tc.generate_data_row(data, fill_char=fill_char, pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
         ansi_print(row)
@@ -131,7 +134,7 @@ def main():
     ansi_print('')
     bordered_table()
     ansi_print('')
-    colored_table()
+    alternating_table()
 
 
 if __name__ == '__main__':
