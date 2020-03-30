@@ -259,15 +259,15 @@ class TableCreator:
 
         return row_buf.getvalue()
 
-    def generate_header_row(self, *, fill_char: str = ' ', pre_line: str = ' ',
-                            inter_cell: str = '  ', post_line: str = ' ') -> str:
+    def generate_header_row(self, *, fill_char: str = ' ', pre_line: str = '',
+                            inter_cell: str = '  ', post_line: str = '') -> str:
         """
         Generate the header row
         :param fill_char: character that fills remaining space in a cell. Defaults to space.
                           (Cannot be a line breaking character)
-        :param pre_line: characters to print after a row line (Defaults to space)
+        :param pre_line: characters to print after a row line (Defaults to blank)
         :param inter_cell: characters to print between cell lines (Defaults to 2 spaces)
-        :param post_line: characters to print after a row line (Defaults to space)
+        :param post_line: characters to print after a row line (Defaults to blank)
         :return: header row string
         :raises: ValueError if divider is an unprintable character like a newline
         """
@@ -276,15 +276,15 @@ class TableCreator:
                                   pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
 
     def generate_data_row(self, data: List[Any], *, fill_char: str = ' ',
-                          pre_line: str = ' ', inter_cell: str = '  ', post_line: str = ' ') -> str:
+                          pre_line: str = '', inter_cell: str = '  ', post_line: str = '') -> str:
         """
         Generate a table data row
         :param data: list of data the same length as cols
         :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
                           color, then give fill_char the same background color. (Cannot be a line breaking character)
-        :param pre_line: characters to print after a row line (Defaults to space)
+        :param pre_line: characters to print after a row line (Defaults to blank)
         :param inter_cell: characters to print between cell lines (Defaults to 2 spaces)
-        :param post_line: characters to print after a row line (Defaults to space)
+        :param post_line: characters to print after a row line (Defaults to blank)
         :return: data row string
         :raises: ValueError if data isn't the same length as self.cols
         """
