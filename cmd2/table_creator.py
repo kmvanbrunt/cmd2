@@ -66,32 +66,100 @@ class TableCreator:
         self.tab_width = tab_width
 
     @staticmethod
-    def _simple_wrap_line(line: str, max_width: int) -> str:
-        styles = utils.get_styles_in_text(line)
+    def _char_based_text_wrap(text: str, max_width: int) -> str:
+        """
+        Wrap text into lines with a display width no longer than max_width. This function wraps
+
+        :param text: text to be wrapped
+        :param max_width: maximum display width of a line
+        :return: Wrapped text
+        """
+        styles = utils.get_styles_in_text(text)
         wrapped_buf = io.StringIO()
 
-        # Display width of the current line we are building
-        cur_width = 0
-
-        char_index = 0
-        while char_index < len(line):
-            # Check if a style sequence is at this index. These don't count toward display width.
-            if char_index in styles:
-                wrapped_buf.write(styles[char_index])
-                char_index += len(styles[char_index])
-                continue
-
-            cur_char = line[char_index]
-            cur_char_width = wcwidth(cur_char)
-
-            if cur_width + cur_char_width > max_width:
-                # Adding this char will exceed the column width. Start a new line.
+        # Respect the existing line breaks
+        data_str_lines = text.splitlines()
+        for line_index, cur_line in enumerate(data_str_lines):
+            if line_index > 0:
                 wrapped_buf.write('\n')
-                cur_width = 0
 
-            cur_width += cur_char_width
-            wrapped_buf.write(cur_char)
-            char_index += 1
+            # Display width of the current line we are building
+            cur_width = 0
+
+            char_index = 0
+            while char_index < len(cur_line):
+                # Check if a style sequence is at this index. These don't count toward display width.
+                if char_index in styles:
+                    wrapped_buf.write(styles[char_index])
+                    char_index += len(styles[char_index])
+                    continue
+
+                cur_char = cur_line[char_index]
+                cur_char_width = wcwidth(cur_char)
+
+                if cur_width + cur_char_width > max_width:
+                    # Adding this char will exceed the column width. Start a new line.
+                    wrapped_buf.write('\n')
+                    cur_width = 0
+
+                cur_width += cur_char_width
+                wrapped_buf.write(cur_char)
+                char_index += 1
+
+        return wrapped_buf.getvalue()
+
+    def _word_based_text_wrap(self, text: str, max_width: int) -> str:
+        """
+        Wrap text into lines with a display width no longer than max_width. This function wraps
+
+        :param text: text to be wrapped
+        :param max_width: maximum display width of a line
+        :return: Wrapped text
+        """
+        wrapped_buf = io.StringIO()
+
+        # Respect the existing line breaks
+        data_str_lines = text.splitlines()
+        for line_index, cur_line in enumerate(data_str_lines):
+            if line_index > 0:
+                wrapped_buf.write('\n')
+
+            # Display width of the current line we are building
+            cur_width = 0
+
+            # Use whitespace as word boundaries
+            words = deque(cur_line.split())
+
+            while words:
+                if cur_width == max_width:
+                    # Start a new line
+                    wrapped_buf.write('\n')
+                    cur_width = 0
+
+                # Get the next word
+                cur_word = words.popleft()
+                word_width = ansi.style_aware_wcswidth(cur_word)
+
+                if word_width > max_width:
+                    # This word is too wide than the max width of a line. Break it up into chunks that
+                    # will fit and place those words at the beginning of the list.
+                    wrapped_word = self._char_based_text_wrap(cur_word, max_width)
+                    chunks = wrapped_word.splitlines()
+                    for line in reversed(chunks):
+                        words.appendleft(line)
+                else:
+                    # If this isn't the first word on the line and it has display width,
+                    # add a space before it if there is room or print it on the next line.
+                    if cur_width > 0 and word_width > 0:
+                        if cur_width + word_width < max_width:
+                            cur_word = ' ' + cur_word
+                            word_width += 1
+                        else:
+                            wrapped_buf.write('\n')
+                            cur_width = 0
+
+                    cur_width += word_width
+                    wrapped_buf.write(cur_word)
 
         return wrapped_buf.getvalue()
 
@@ -101,6 +169,8 @@ class TableCreator:
         :param data: data to be included in cell
         :param is_header: True if writing a header cell, otherwise writing a data cell
         :param col: Column definition for this cell
+        :param fill_char: character that fills remaining space in a cell. If your text has a background color,
+                          then give fill_char the same background color. (Cannot be a line breaking character)
         :return: Tuple of cell lines and the display width of the cell
         """
         advanced = True
@@ -116,55 +186,10 @@ class TableCreator:
 
         # Check if we are wrapping this cell
         if not is_header and col.wrap_data:
-            wrapped_buf = io.StringIO()
-
-            # Respect the existing line breaks
-            data_str_lines = data_str.splitlines()
-            for line_index, cur_line in enumerate(data_str_lines):
-                if line_index > 0:
-                    wrapped_buf.write('\n')
-
-                if advanced:
-                    # Display width of the current line we are building
-                    cur_width = 0
-
-                    # Use whitespace as word boundaries
-                    words = deque(cur_line.split())
-
-                    while words:
-                        if cur_width == col.width:
-                            # Start a new line
-                            wrapped_buf.write('\n')
-                            cur_width = 0
-
-                        # Get the next word
-                        cur_word = words.popleft()
-                        word_width = ansi.style_aware_wcswidth(cur_word)
-
-                        if word_width > col.width:
-                            # This word is too wide than the max width of a line. Break it up into chunks that
-                            # will fit and place those words at the beginning of the list.
-                            wrapped_word = self._simple_wrap_line(cur_word, col.width)
-                            chunks = wrapped_word.splitlines()
-                            for line in reversed(chunks):
-                                words.appendleft(line)
-                        else:
-                            # If this isn't the first word on the line and it has display width,
-                            # add a space before it if there is room or print it on the next line.
-                            if cur_width > 0 and word_width > 0:
-                                if cur_width + word_width < col.width:
-                                    cur_word = ' ' + cur_word
-                                    word_width += 1
-                                else:
-                                    wrapped_buf.write('\n')
-                                    cur_width = 0
-
-                            cur_width += word_width
-                            wrapped_buf.write(cur_word)
-                else:
-                    wrapped_buf.write(self._simple_wrap_line(cur_line, col.width))
-
-            data_str = wrapped_buf.getvalue()
+            if advanced:
+                data_str = self._word_based_text_wrap(data_str, col.width)
+            else:
+                data_str = self._char_based_text_wrap(data_str, col.width)
 
         # Align the text
         aligned_text = utils.align_text(data_str, fill_char=fill_char, width=col.width,
@@ -179,6 +204,8 @@ class TableCreator:
         Generate a table data row
         :param data: list of data the same length as cols
         :param is_header: True if writing a header cell, otherwise writing a data cell
+        :param fill_char: character that fills remaining space in a cell. If your text has a background color,
+                          then give fill_char the same background color. (Cannot be a line breaking character)
         :return: Tuple containing row string and display width of row
         :raises: ValueError if data isn't the same length as self.cols
         """
@@ -238,6 +265,8 @@ class TableCreator:
         Generate the header row
         :param divider: character that makes up the divider row below the header. Set this to None if you want no
                         divider. If divider is a tab, then it will be converted to a space. Default to dash.
+        :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
+                          color, then give fill_char the same background color. (Cannot be a line breaking character)
         :return: header row string
         :raises: TypeError if divider is more than one character (not including ANSI style sequences)
                  ValueError if divider is an unprintable character like a newline
@@ -265,6 +294,8 @@ class TableCreator:
         """
         Generate a table data row
         :param data: list of data the same length as cols
+        :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
+                          color, then give fill_char the same background color. (Cannot be a line breaking character)
         :return: data row string
         :raises: ValueError if data isn't the same length as self.cols
         """
