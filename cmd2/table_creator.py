@@ -1,5 +1,5 @@
 # coding=utf-8
-"""Simple table creation class"""
+"""Table creation API"""
 import io
 from collections import deque
 from typing import Any, List, Optional, Tuple
@@ -65,11 +65,13 @@ class TableCreator:
     @staticmethod
     def _char_based_text_wrap(text: str, max_width: int) -> str:
         """
-        Wrap text into lines with a display width no longer than max_width. This function wraps
+        Wrap text into lines with a display width no longer than max_width. This function breaks text on character
+        boundaries. Long words will be broken over multiple lines and may start anywhere on a line. ANSI escape
+        sequences do not count toward the width of a line.
 
         :param text: text to be wrapped
         :param max_width: maximum display width of a line
-        :return: Wrapped text
+        :return: wrapped text
         """
         styles = utils.get_styles_in_text(text)
         wrapped_buf = io.StringIO()
@@ -107,11 +109,13 @@ class TableCreator:
 
     def _word_based_text_wrap(self, text: str, max_width: int) -> str:
         """
-        Wrap text into lines with a display width no longer than max_width. This function wraps
+        Wrap text into lines with a display width no longer than max_width. This function breaks text on whitespace
+        boundaries. If a word is longer than the space remaining on a line, then it will start on a new line.
+        All spaces are replaced by a single space. ANSI escape sequences do not count toward the width of a line.
 
         :param text: text to be wrapped
         :param max_width: maximum display width of a line
-        :return: Wrapped text
+        :return: wrapped text
         """
         wrapped_buf = io.StringIO()
 
