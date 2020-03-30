@@ -8,9 +8,6 @@ from wcwidth import wcwidth
 
 from . import ansi, utils
 
-# Padding between table columns
-COL_PADDING = '  '
-
 
 class Column:
     """Table column configuration"""
@@ -199,14 +196,18 @@ class TableCreator:
         cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
         return lines, cell_width
 
-    def _generate_row(self, data: List[Any], is_header: bool, fill_char: str) -> Tuple[str, int]:
+    def _generate_row(self, data: List[Any], is_header: bool, fill_char: str,
+                      pre_line, inter_cell, post_line) -> str:
         """
         Generate a table data row
         :param data: list of data the same length as cols
         :param is_header: True if writing a header cell, otherwise writing a data cell
         :param fill_char: character that fills remaining space in a cell. If your text has a background color,
                           then give fill_char the same background color. (Cannot be a line breaking character)
-        :return: Tuple containing row string and display width of row
+        :param pre_line: characters to print after a row line
+        :param inter_cell: characters to print between cell lines
+        :param post_line: characters to print after a row line
+        :return: row string
         :raises: ValueError if data isn't the same length as self.cols
         """
         class Cell:
@@ -222,7 +223,6 @@ class TableCreator:
             raise ValueError("Length of cols must match length of data")
 
         # Build a list of cells for this row
-        total_width = 0
         cells = []
         num_lines = 0
 
@@ -231,17 +231,15 @@ class TableCreator:
             cell.lines, cell.width = self._generate_cell_lines(data[col_index], is_header, col, fill_char)
             cells.append(cell)
             num_lines = max(len(cell.lines), num_lines)
-            total_width += cell.width
-
-            # Account for padding if this is not the last column
-            if col_index < len(self.cols) - 1:
-                total_width += ansi.style_aware_wcswidth(COL_PADDING)
 
         row_buf = io.StringIO()
 
         # Build this row one line at a time
         for line_index in range(num_lines):
             for cell_index, cell in enumerate(cells):
+                if cell_index == 0:
+                    row_buf.write(pre_line)
+
                 # Check if this cell has a line at this index
                 if line_index < len(cell.lines):
                     row_buf.write(cell.lines[line_index])
@@ -250,54 +248,45 @@ class TableCreator:
                 else:
                     row_buf.write(utils.align_left('', fill_char=fill_char, width=cell.width))
 
-                # Add padding if this is not the last column
-                if cell_index < len(cells) - 1:
-                    row_buf.write(COL_PADDING)
+                if cell_index < len(self.cols) - 1:
+                    row_buf.write(inter_cell)
+                if cell_index == len(self.cols) - 1:
+                    row_buf.write(post_line)
 
             # Add a newline if this is not the last row
             if line_index < num_lines - 1:
                 row_buf.write('\n')
 
-        return row_buf.getvalue(), total_width
+        return row_buf.getvalue()
 
-    def generate_header_row(self, *, divider: Optional[str] = '-', fill_char: str = ' ') -> str:
+    def generate_header_row(self, *, fill_char: str = ' ', pre_line: str = ' ',
+                            inter_cell: str = '  ', post_line: str = ' ') -> str:
         """
         Generate the header row
-        :param divider: character that makes up the divider row below the header. Set this to None if you want no
-                        divider. If divider is a tab, then it will be converted to a space. Default to dash.
-        :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
-                          color, then give fill_char the same background color. (Cannot be a line breaking character)
+        :param fill_char: character that fills remaining space in a cell. Defaults to space.
+                          (Cannot be a line breaking character)
+        :param pre_line: characters to print after a row line (Defaults to space)
+        :param inter_cell: characters to print between cell lines (Defaults to 2 spaces)
+        :param post_line: characters to print after a row line (Defaults to space)
         :return: header row string
-        :raises: TypeError if divider is more than one character (not including ANSI style sequences)
-                 ValueError if divider is an unprintable character like a newline
+        :raises: ValueError if divider is an unprintable character like a newline
         """
-        if divider == '\t':
-            divider = ' '
-
-        if divider is not None:
-            if len(ansi.strip_style(divider)) != 1:
-                raise TypeError("Divider must be exactly one character long")
-
-            if ansi.style_aware_wcswidth(divider) == -1:
-                raise (ValueError("Divider is an unprintable character"))
-
         data = [col.header for col in self.cols]
-        row_str, width = self._generate_row(data, is_header=True, fill_char=fill_char)
+        return self._generate_row(data, is_header=True, fill_char=fill_char,
+                                  pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
 
-        # Check if we need a divider
-        if divider is not None and width > 0:
-            row_str += '\n' + utils.align_left('', fill_char=divider, width=width)
-
-        return row_str
-
-    def generate_data_row(self, data: List[Any], *, fill_char: str = ' ') -> str:
+    def generate_data_row(self, data: List[Any], *, fill_char: str = ' ',
+                          pre_line: str = ' ', inter_cell: str = '  ', post_line: str = ' ') -> str:
         """
         Generate a table data row
         :param data: list of data the same length as cols
         :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
                           color, then give fill_char the same background color. (Cannot be a line breaking character)
+        :param pre_line: characters to print after a row line (Defaults to space)
+        :param inter_cell: characters to print between cell lines (Defaults to 2 spaces)
+        :param post_line: characters to print after a row line (Defaults to space)
         :return: data row string
         :raises: ValueError if data isn't the same length as self.cols
         """
-        row_str, width = self._generate_row(data, is_header=False, fill_char=fill_char)
-        return row_str
+        return self._generate_row(data, is_header=False, fill_char=fill_char,
+                                  pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
