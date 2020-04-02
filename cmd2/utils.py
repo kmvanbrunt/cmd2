@@ -948,8 +948,9 @@ def truncate_line(line: str, max_width: int, *, tab_width: int = 4) -> str:
         # Check if a style sequence is at this index. These don't count toward display width.
         if index in styles:
             truncated_buf.write(styles[index])
+            style_len = len(styles[index])
             styles.pop(index)
-            index += len(styles[index])
+            index += style_len
             continue
 
         char = line[index]
