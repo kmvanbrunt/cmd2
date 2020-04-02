@@ -1,7 +1,6 @@
 # coding=utf-8
 """Table creation API"""
 import io
-from collections import deque
 from typing import Any, List, Optional, Tuple, Union
 
 from wcwidth import wcwidth
@@ -65,15 +64,18 @@ class TableCreator:
         self.tab_width = tab_width
 
     @staticmethod
-    def _wrap_long_word(text: str, max_width: int, max_lines: Union[int, float]) -> str:
+    def _wrap_long_word(text: str, max_width: int, max_lines: Union[int, float]) -> Tuple[str, int, int]:
         """
-        Wrap a long word over multiple lines. ANSI escape sequences do not count toward the width of a line.
+        Used by _wrap_text to wrap a long word over multiple lines
 
         :param text: text to be wrapped
         :param max_width: maximum display width of a line
         :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
-        :return: wrapped text
+        :return: Tuple(wrapped text, lines used, display width of last line)
         """
+        if not text:
+            return '', 0, 0
+
         styles = utils.get_styles_in_text(text)
         wrapped_buf = io.StringIO()
 
@@ -81,16 +83,18 @@ class TableCreator:
         total_lines = 1
 
         # Display width of the current line we are building
-        cur_width = 0
+        cur_line_width = 0
 
         char_index = 0
         while char_index < len(text):
             # We've reached the last line. Let truncate_line do the rest.
             if total_lines == max_lines:
-                wrapped_buf.write(utils.truncate_line(text[char_index:], max_width))
+                truncated_line = utils.truncate_line(text[char_index:], max_width)
+                cur_line_width = ansi.style_aware_wcswidth(truncated_line)
+                wrapped_buf.write(truncated_line)
                 break
 
-            # Check if a style sequence is at this index. These don't count toward display width.
+            # Check if we're at a style sequence. These don't count toward display width.
             if char_index in styles:
                 wrapped_buf.write(styles[char_index])
                 char_index += len(styles[char_index])
@@ -105,37 +109,83 @@ class TableCreator:
                 cur_char = constants.HORIZONTAL_ELLIPSIS
                 cur_char_width = wcwidth(cur_char)
 
-            if cur_width + cur_char_width > max_width:
+            if cur_line_width + cur_char_width > max_width:
                 if total_lines < max_lines:
-                    # Adding this char will exceed the column width. Start a new line.
+                    # Adding this char will exceed the max_width. Start a new line.
                     wrapped_buf.write('\n')
                     total_lines += 1
-                    cur_width = 0
+                    cur_line_width = 0
                     continue
                 else:
                     # We've use all allowed lines. Add an ellipsis and exit loop.
                     wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
+                    cur_line_width += ansi.style_aware_wcswidth(constants.HORIZONTAL_ELLIPSIS)
                     break
 
             # Add this character and move to the next one
-            cur_width += cur_char_width
+            cur_line_width += cur_char_width
             wrapped_buf.write(cur_char)
             char_index += 1
 
-        return wrapped_buf.getvalue()
+        return wrapped_buf.getvalue(), total_lines, cur_line_width
 
     @staticmethod
     def _wrap_text(text: str, max_width: int, max_lines: Union[int, float]) -> str:
         """
-        Wrap text into lines with a display width no longer than max_width. This function breaks text on whitespace
+        Wrap text into lines with a display width no longer than max_width. This function breaks words on whitespace
         boundaries. If a word is longer than the space remaining on a line, then it will start on a new line.
-        All spaces are replaced by a single space. ANSI escape sequences do not count toward the width of a line.
+        ANSI escape sequences do not count toward the width of a line.
 
         :param text: text to be wrapped
         :param max_width: maximum display width of a line
         :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
         :return: wrapped text
         """
+        def add_word(word_to_add: str):
+            """
+            Add a word to the wrapped text
+            :param word_to_add: the word being added
+            """
+            nonlocal cur_line_width
+            nonlocal total_lines
+
+            word_width = ansi.style_aware_wcswidth(word_to_add)
+
+            # Calculate width if we were to add this word
+            potential_width = cur_line_width + word_width
+            remaining_width = max_width - cur_line_width
+
+            use_new_line = False
+            if potential_width > remaining_width:
+                use_new_line = True
+
+            # If this isn't the first word on the line and it has display width,
+            # add a space before it if there is room or print it on the next line.
+            elif cur_line_width > 0 and word_width > 0:
+                if potential_width < remaining_width:
+                    word_to_add = ' ' + word_to_add
+                    word_width += 1
+                else:
+                    use_new_line = True
+
+            # Check if the word is wider than a line allows
+            if use_new_line:
+                # Start the word on the next line
+                if cur_line_width > 0:
+                    wrapped_buf.write('\n')
+                    total_lines += 1
+                wrapped_word, lines_used, cur_line_width = TableCreator._wrap_long_word(word_to_add,
+                                                                                        max_width,
+                                                                                        max_lines - total_lines + 1)
+                # Write the word to the buffer
+                wrapped_buf.write(wrapped_word)
+                total_lines += lines_used - 1
+
+            else:
+                cur_line_width += word_width
+                wrapped_buf.write(word_to_add)
+
+        # Buffer of the wrapped text
         wrapped_buf = io.StringIO()
 
         # How many lines we've used
@@ -143,70 +193,72 @@ class TableCreator:
 
         # Respect the existing line breaks
         data_str_lines = text.splitlines()
-        for line_index, cur_line in enumerate(data_str_lines):
+        for data_line_index, data_line in enumerate(data_str_lines):
             total_lines += 1
 
-            if line_index > 0:
+            if data_line_index > 0:
                 wrapped_buf.write('\n')
 
+            # Locate the styles in this line
+            styles = utils.get_styles_in_text(data_line)
+
             # Display width of the current line we are building
-            cur_width = 0
+            cur_line_width = 0
 
-            # Use whitespace as word boundaries
-            words = deque(cur_line.split())
-            if not words and total_lines == max_lines and line_index < len(data_str_lines):
-                # We've use all allowed lines. Add an ellipsis and exit loop.
-                wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
-                break
+            # Current word being built
+            cur_word_buf = io.StringIO()
 
-            while words:
-                if cur_width == max_width:
-                    # Start a new line
-                    wrapped_buf.write('\n')
-                    total_lines += 1
-                    cur_width = 0
+            char_index = 0
+            while char_index < len(data_line):
+                if total_lines == max_lines:
+                    if cur_line_width < max_width:
+                        wrapped_buf.write(utils.truncate_line(cur_word_buf.getvalue() + data_line[char_index:],
+                                                              max_width - cur_line_width))
+                    cur_word_buf = io.StringIO()
+                    break
 
-                # Get the next word
-                cur_word = words.popleft()
-                word_width = ansi.style_aware_wcswidth(cur_word)
+                # Check if we're at a style sequence. These don't count toward display width.
+                if char_index in styles:
+                    cur_word_buf.write(styles[char_index])
+                    char_index += len(styles[char_index])
+                    continue
 
-                # Check if the word is wider than a line allows
-                if word_width > max_width:
-                    if total_lines < max_lines:
-                        # This word is too wide than the max width of a line. Break it up into chunks that
-                        # will fit and place those words at the beginning of the list.
-                        remaining_lines = max_lines - total_lines
-                        wrapped_word = TableCreator._wrap_long_word(cur_word, max_width, remaining_lines)
-                        chunks = wrapped_word.splitlines()
-                        for line in reversed(chunks):
-                            words.appendleft(line)
+                cur_char = data_line[char_index]
+                cur_char_width = ansi.style_aware_wcswidth(cur_char)
+                char_index += 1
+
+                if cur_char == ' ':
+                    # If we've reached the end of a word, then add the word to the wrapped text
+                    if cur_word_buf.tell() > 0:
+                        add_word(cur_word_buf.getvalue())
+                        cur_word_buf = io.StringIO()
+
+                    # Otherwise add this space to the wrapped text
                     else:
-                        # We've use all allowed lines. Truncate word and exit loop.
-                        if cur_width > 0:
-                            # Insert a space since this isn't the first word on the line
-                            cur_word = ' ' + cur_word
-                            word_width += 1
-                        truncated_word = utils.truncate_line(cur_word, max_width - cur_width)
-                        wrapped_buf.write(truncated_word)
-                        break
-                else:
-                    # TODO handle cases
-                    # 1. Word fits, but this is the last line allowed and there are more lines (truncate word)
-                    # 2. Word does not fit and this is last line (truncate word)
-
-                    # If this isn't the first word on the line and it has display width,
-                    # add a space before it if there is room or print it on the next line.
-                    if cur_width > 0 and word_width > 0:
-                        if cur_width + word_width < max_width:
-                            cur_word = ' ' + cur_word
-                            word_width += 1
-                        else:
+                        # Check if we need to start a new line
+                        if cur_char_width + cur_line_width > max_width:
                             wrapped_buf.write('\n')
                             total_lines += 1
-                            cur_width = 0
+                            cur_line_width = 0
 
-                    cur_width += word_width
-                    wrapped_buf.write(cur_word)
+                        wrapped_buf.write(cur_char)
+                        cur_line_width += cur_char_width
+                else:
+                    # Add this character to the word buffer
+                    cur_word_buf.write(cur_char)
+
+            # Add the final word of this line if its been started
+            if cur_word_buf.tell() > 0:
+                add_word(cur_word_buf.getvalue())
+
+            # Stop line loop if we've written to max_lines
+            if total_lines == max_lines:
+                # If any data was left to write, then make the last character an ellipsis.
+                # It won't already be one if the last word written had not been not truncated.
+                if data_line_index < len(data_str_lines) - 1 or char_index < len(data_line) - 1 and wrapped_buf.tell() > 0:
+                    wrapped_buf.seek(wrapped_buf.tell() - 1)
+                    wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
+                break
 
         return wrapped_buf.getvalue()
 
