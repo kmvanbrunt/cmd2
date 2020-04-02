@@ -2,11 +2,11 @@
 """Table creation API"""
 import io
 from collections import deque
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 from wcwidth import wcwidth
 
-from . import ansi, utils
+from . import ansi, constants, utils
 
 
 class Column:
@@ -14,20 +14,18 @@ class Column:
     def __init__(self, header: str, *, width: Optional[int] = None,
                  header_alignment: utils.TextAlignment = utils.TextAlignment.LEFT,
                  data_alignment: utils.TextAlignment = utils.TextAlignment.LEFT,
-                 wrap_data: bool = False) -> None:
+                 max_data_lines: Union[int, float] = constants.INFINITY) -> None:
         """
         Column initializer
         :param header: label for column header
         :param width: display width of column (defaults to width of header or 1 if header is blank)
+                      header and data text will wrap within this width using word-based wrapping
         :param header_alignment: how to align header (defaults to left)
         :param data_alignment: how to align data (defaults to left)
-        :param wrap_data: If True, data will wrap within the width of the column.
-                          Wrapping is basic and will split words. If you require more advanced wrapping, then wrap
-                          your data with another library prior to building the table.
-
-                          If False, data that is wider than the column with print outside the column boundaries.
-                          Defaults to False.
+        :param max_data_lines: maximum data lines allowed in a cell. If line count exceeds this, then the final
+                               line displayed will be truncated with an ellipsis. (defaults to INFINITY)
         :raises ValueError if width is less than 1
+                ValueError if max_data_lines is less than 1
         """
         self.header = header
 
@@ -40,11 +38,15 @@ class Column:
         elif width < 1:
             raise ValueError("Column width cannot be less than 1")
         else:
-            self. width = width
+            self.width = width
 
         self.header_alignment = header_alignment
         self.data_alignment = data_alignment
-        self.wrap_data = wrap_data
+
+        if max_data_lines < 1:
+            raise ValueError("Max data lines cannot be less than 1")
+
+        self.max_data_lines = max_data_lines
 
 
 class TableCreator:
@@ -63,51 +65,67 @@ class TableCreator:
         self.tab_width = tab_width
 
     @staticmethod
-    def _char_based_text_wrap(text: str, max_width: int) -> str:
+    def _wrap_long_word(text: str, max_width: int, max_lines: Union[int, float]) -> str:
         """
-        Wrap text into lines with a display width no longer than max_width. This function breaks text on character
-        boundaries. Long words will be broken over multiple lines and may start anywhere on a line. ANSI escape
-        sequences do not count toward the width of a line.
+        Wrap a long word over multiple lines. ANSI escape sequences do not count toward the width of a line.
 
         :param text: text to be wrapped
         :param max_width: maximum display width of a line
+        :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
         :return: wrapped text
         """
         styles = utils.get_styles_in_text(text)
         wrapped_buf = io.StringIO()
 
-        # Respect the existing line breaks
-        data_str_lines = text.splitlines()
-        for line_index, cur_line in enumerate(data_str_lines):
-            if line_index > 0:
-                wrapped_buf.write('\n')
+        # How many lines we've used
+        total_lines = 1
 
-            # Display width of the current line we are building
-            cur_width = 0
+        # Display width of the current line we are building
+        cur_width = 0
 
-            char_index = 0
-            while char_index < len(cur_line):
-                # Check if a style sequence is at this index. These don't count toward display width.
-                if char_index in styles:
-                    wrapped_buf.write(styles[char_index])
-                    char_index += len(styles[char_index])
-                    continue
+        char_index = 0
+        while char_index < len(text):
+            # We've reached the last line. Let truncate_line do the rest.
+            if total_lines == max_lines:
+                wrapped_buf.write(utils.truncate_line(text[char_index:], max_width))
+                break
 
-                cur_char = cur_line[char_index]
+            # Check if a style sequence is at this index. These don't count toward display width.
+            if char_index in styles:
+                wrapped_buf.write(styles[char_index])
+                char_index += len(styles[char_index])
+                continue
+
+            cur_char = text[char_index]
+            cur_char_width = wcwidth(cur_char)
+
+            if cur_char_width > max_width:
+                # We have a case where the character is wider than max_width. This can happen if max_width
+                # is 1 and the text contains wide characters (e.g. East Asian). Replace it with an ellipsis.
+                cur_char = constants.HORIZONTAL_ELLIPSIS
                 cur_char_width = wcwidth(cur_char)
 
-                if cur_width + cur_char_width > max_width:
+            if cur_width + cur_char_width > max_width:
+                if total_lines < max_lines:
                     # Adding this char will exceed the column width. Start a new line.
                     wrapped_buf.write('\n')
+                    total_lines += 1
                     cur_width = 0
+                    continue
+                else:
+                    # We've use all allowed lines. Add an ellipsis and exit loop.
+                    wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
+                    break
 
-                cur_width += cur_char_width
-                wrapped_buf.write(cur_char)
-                char_index += 1
+            # Add this character and move to the next one
+            cur_width += cur_char_width
+            wrapped_buf.write(cur_char)
+            char_index += 1
 
         return wrapped_buf.getvalue()
 
-    def _word_based_text_wrap(self, text: str, max_width: int) -> str:
+    @staticmethod
+    def _wrap_text(text: str, max_width: int, max_lines: Union[int, float]) -> str:
         """
         Wrap text into lines with a display width no longer than max_width. This function breaks text on whitespace
         boundaries. If a word is longer than the space remaining on a line, then it will start on a new line.
@@ -115,13 +133,19 @@ class TableCreator:
 
         :param text: text to be wrapped
         :param max_width: maximum display width of a line
+        :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
         :return: wrapped text
         """
         wrapped_buf = io.StringIO()
 
+        # How many lines we've used
+        total_lines = 0
+
         # Respect the existing line breaks
         data_str_lines = text.splitlines()
         for line_index, cur_line in enumerate(data_str_lines):
+            total_lines += 1
+
             if line_index > 0:
                 wrapped_buf.write('\n')
 
@@ -130,25 +154,46 @@ class TableCreator:
 
             # Use whitespace as word boundaries
             words = deque(cur_line.split())
+            if not words and total_lines == max_lines and line_index < len(data_str_lines):
+                # We've use all allowed lines. Add an ellipsis and exit loop.
+                wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
+                break
 
             while words:
                 if cur_width == max_width:
                     # Start a new line
                     wrapped_buf.write('\n')
+                    total_lines += 1
                     cur_width = 0
 
                 # Get the next word
                 cur_word = words.popleft()
                 word_width = ansi.style_aware_wcswidth(cur_word)
 
+                # Check if the word is wider than a line allows
                 if word_width > max_width:
-                    # This word is too wide than the max width of a line. Break it up into chunks that
-                    # will fit and place those words at the beginning of the list.
-                    wrapped_word = self._char_based_text_wrap(cur_word, max_width)
-                    chunks = wrapped_word.splitlines()
-                    for line in reversed(chunks):
-                        words.appendleft(line)
+                    if total_lines < max_lines:
+                        # This word is too wide than the max width of a line. Break it up into chunks that
+                        # will fit and place those words at the beginning of the list.
+                        remaining_lines = max_lines - total_lines
+                        wrapped_word = TableCreator._wrap_long_word(cur_word, max_width, remaining_lines)
+                        chunks = wrapped_word.splitlines()
+                        for line in reversed(chunks):
+                            words.appendleft(line)
+                    else:
+                        # We've use all allowed lines. Truncate word and exit loop.
+                        if cur_width > 0:
+                            # Insert a space since this isn't the first word on the line
+                            cur_word = ' ' + cur_word
+                            word_width += 1
+                        truncated_word = utils.truncate_line(cur_word, max_width - cur_width)
+                        wrapped_buf.write(truncated_word)
+                        break
                 else:
+                    # TODO handle cases
+                    # 1. Word fits, but this is the last line allowed and there are more lines (truncate word)
+                    # 2. Word does not fit and this is last line (truncate word)
+
                     # If this isn't the first word on the line and it has display width,
                     # add a space before it if there is room or print it on the next line.
                     if cur_width > 0 and word_width > 0:
@@ -157,6 +202,7 @@ class TableCreator:
                             word_width += 1
                         else:
                             wrapped_buf.write('\n')
+                            total_lines += 1
                             cur_width = 0
 
                     cur_width += word_width
@@ -174,8 +220,6 @@ class TableCreator:
                           then give fill_char the same background color. (Cannot be a line breaking character)
         :return: Tuple of cell lines and the display width of the cell
         """
-        advanced = True
-
         # Align the text according to Column parameters
         if is_header:
             alignment = col.header_alignment
@@ -185,12 +229,8 @@ class TableCreator:
         # Convert data to string and replace tabs with spaces
         data_str = str(data).replace('\t', ' ' * self.tab_width)
 
-        # Check if we are wrapping this cell
-        if not is_header and col.wrap_data:
-            if advanced:
-                data_str = self._word_based_text_wrap(data_str, col.width)
-            else:
-                data_str = self._char_based_text_wrap(data_str, col.width)
+        # Wrap text in this cell
+        data_str = self._wrap_text(data_str, col.width, col.max_data_lines)
 
         # Align the text
         aligned_text = utils.align_text(data_str, fill_char=fill_char, width=col.width,
