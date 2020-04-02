@@ -150,19 +150,16 @@ class TableCreator:
             nonlocal total_lines
 
             word_width = ansi.style_aware_wcswidth(word_to_add)
-
-            # Calculate width if we were to add this word
-            potential_width = cur_line_width + word_width
             remaining_width = max_width - cur_line_width
 
             use_new_line = False
-            if potential_width > remaining_width:
+            if word_width > remaining_width:
                 use_new_line = True
 
             # If this isn't the first word on the line and it has display width,
             # add a space before it if there is room or print it on the next line.
             elif cur_line_width > 0 and word_width > 0:
-                if potential_width < remaining_width:
+                if word_width < remaining_width:
                     word_to_add = ' ' + word_to_add
                     word_width += 1
                 else:
@@ -253,9 +250,9 @@ class TableCreator:
 
             # Stop line loop if we've written to max_lines
             if total_lines == max_lines:
-                # If any data was left to write, then make the last character an ellipsis.
-                # It won't already be one if the last word written had not been not truncated.
-                if data_line_index < len(data_str_lines) - 1 or char_index < len(data_line) - 1 and wrapped_buf.tell() > 0:
+                # If all the text didn't fit, make the last character an ellipsis.
+                # It won't already be one if the last word written did not need to be truncated.
+                if data_line_index < len(data_str_lines) - 1 or char_index < len(data_line) - 1:
                     wrapped_buf.seek(wrapped_buf.tell() - 1)
                     wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
                 break
