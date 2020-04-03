@@ -757,6 +757,7 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
 
     # ANSI style sequences that may affect future lines will be cancelled by the fill_char's style.
     # To avoid this, we save the state of a line's style so we can restore it when beginning the next line.
+    # This also allows the lines to be used independently and still have their style. TableCreator does this.
     aggregate_styles = ''
 
     # Save the ANSI style sequences in fill_char
@@ -787,16 +788,16 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
         if line_width == -1:
             raise(ValueError("Text to align contains an unprintable character"))
 
-        elif line_width >= width:
-            # No need to add fill characters
-            text_buf.write(line)
-            continue
-
         # Get the styles in this line
         line_styles = get_styles_in_text(line)
 
         # Calculate how wide each side of filling needs to be
-        total_fill_width = width - line_width
+        if line_width >= width:
+            # Don't return here even though the line needs no fill chars.
+            # There may be styles sequences to restore.
+            total_fill_width = 0
+        else:
+            total_fill_width = width - line_width
 
         if alignment == TextAlignment.LEFT:
             left_fill_width = 0
@@ -819,8 +820,13 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
 
         # Don't allow styles in fill_char and text to affect one another
         if fill_char_styles or aggregate_styles or line_styles:
-            left_fill = ansi.RESET_ALL + left_fill + ansi.RESET_ALL
-            right_fill = ansi.RESET_ALL + right_fill + ansi.RESET_ALL
+            if left_fill:
+                left_fill = ansi.RESET_ALL + left_fill
+            left_fill += ansi.RESET_ALL
+
+            if right_fill:
+                right_fill = ansi.RESET_ALL + right_fill
+            right_fill += ansi.RESET_ALL
 
         # Write the line and restore any styles from previous lines
         text_buf.write(left_fill + aggregate_styles + line + right_fill)
@@ -911,7 +917,8 @@ def truncate_line(line: str, max_width: int, *, tab_width: int = 4) -> str:
 
     This is done to prevent issues caused in cases like: truncate_string(fg.blue + hello + fg.reset, 3)
     In this case, "hello" would be truncated before fg.reset resets the color from blue. Appending the remaining style
-    sequences makes sure the style is in the same state had the entire string been printed.
+    sequences makes sure the style is in the same state had the entire string been printed. align_text() relies on this
+    behavior when preserving style over multiple lines.
 
     :param line: text to truncate
     :param max_width: the maximum display width the resulting string is allowed to have
