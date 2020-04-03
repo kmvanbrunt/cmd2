@@ -64,19 +64,20 @@ class TableCreator:
         self.tab_width = tab_width
 
     @staticmethod
-    def _wrap_long_word(text: str, max_width: int, max_lines: Union[int, float]) -> Tuple[str, int, int]:
+    def _wrap_long_word(word: str, max_width: int, max_lines: Union[int, float], is_last_word: bool) -> Tuple[str, int, int]:
         """
         Used by _wrap_text to wrap a long word over multiple lines
 
-        :param text: text to be wrapped
+        :param word: word being wrapped
         :param max_width: maximum display width of a line
         :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
+        :param is_last_word: True if this is the last word of the total text being wrapped
         :return: Tuple(wrapped text, lines used, display width of last line)
         """
-        if not text:
+        if not word:
             return '', 0, 0
 
-        styles = utils.get_styles_in_text(text)
+        styles = utils.get_styles_in_text(word)
         wrapped_buf = io.StringIO()
 
         # How many lines we've used
@@ -86,10 +87,16 @@ class TableCreator:
         cur_line_width = 0
 
         char_index = 0
-        while char_index < len(text):
+        while char_index < len(word):
             # We've reached the last line. Let truncate_line do the rest.
             if total_lines == max_lines:
-                truncated_line = utils.truncate_line(text[char_index:], max_width)
+                # If this isn't the last word, but it's gonna fill the final line, then force truncate_line
+                # to place an ellipsis at the end of it by appending 1 character to it.
+                remaining_word = word[char_index:]
+                if not is_last_word and ansi.style_aware_wcswidth(remaining_word) == max_width:
+                    remaining_word += 'a'
+
+                truncated_line = utils.truncate_line(remaining_word, max_width)
                 cur_line_width = ansi.style_aware_wcswidth(truncated_line)
                 wrapped_buf.write(truncated_line)
                 break
@@ -100,7 +107,7 @@ class TableCreator:
                 char_index += len(styles[char_index])
                 continue
 
-            cur_char = text[char_index]
+            cur_char = word[char_index]
             cur_char_width = wcwidth(cur_char)
 
             if cur_char_width > max_width:
@@ -141,6 +148,10 @@ class TableCreator:
         :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
         :return: wrapped text
         """
+        def is_last_word() -> bool:
+            """Check if we've reached the last word of the text being wrapped"""
+            return data_line_index == len(data_str_lines) - 1 and char_index == len(data_line) - 1
+
         def add_word(word_to_add: str):
             """
             Add a word to the wrapped text
@@ -157,9 +168,11 @@ class TableCreator:
                     # Start the long word on its own line
                     wrapped_buf.write('\n')
                     total_lines += 1
+
                 wrapped_word, lines_used, cur_line_width = TableCreator._wrap_long_word(word_to_add,
                                                                                         max_width,
-                                                                                        max_lines - total_lines + 1)
+                                                                                        max_lines - total_lines + 1,
+                                                                                        is_last_word())
                 # Write the word to the buffer
                 wrapped_buf.write(wrapped_word)
                 total_lines += lines_used - 1
@@ -180,6 +193,12 @@ class TableCreator:
                     wrapped_buf.write('\n')
                     total_lines += 1
                     cur_line_width = 0
+                    remaining_width = max_width
+
+                # If this isn't the last word, but it's gonna fill the final line, then force truncate_line
+                # to place an ellipsis at the end of it by appending 1 character to it.
+                if not is_last_word() and total_lines == max_lines and word_width == remaining_width:
+                    word_to_add = utils.truncate_line(word_to_add + "a", remaining_width)
 
                 cur_line_width += word_width
                 wrapped_buf.write(word_to_add)
@@ -209,15 +228,7 @@ class TableCreator:
 
             char_index = 0
             while char_index < len(data_line):
-                if total_lines == max_lines:
-                    if cur_line_width < max_width:
-                        # If this line already has a word, put a space before the next one
-                        padding = ' ' if cur_line_width > 0 else ''
-                        truncated_line = utils.truncate_line(padding + cur_word_buf.getvalue() + data_line[char_index:],
-                                                             max_width - cur_line_width)
-                        cur_line_width += ansi.style_aware_wcswidth(truncated_line)
-                        wrapped_buf.write(truncated_line)
-                        cur_word_buf = io.StringIO()
+                if total_lines == max_lines and cur_line_width == max_width:
                     break
 
                 # Check if we're at a style sequence. These don't count toward display width.
@@ -258,9 +269,7 @@ class TableCreator:
             if total_lines == max_lines:
                 # If all the text didn't fit, make the last character an ellipsis.
                 # It won't already be one if the last line didn't need to be truncated.
-                if data_line_index < len(data_str_lines) - 1 or char_index < len(data_line) - 1:
-                    if cur_line_width == max_width:
-                        wrapped_buf.seek(wrapped_buf.tell() - 1)
+                if not is_last_word() and cur_line_width < max_width:
                     wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
                 break
 
