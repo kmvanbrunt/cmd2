@@ -150,25 +150,11 @@ class TableCreator:
             nonlocal total_lines
 
             word_width = ansi.style_aware_wcswidth(word_to_add)
-            remaining_width = max_width - cur_line_width
 
-            use_new_line = False
-            if word_width > remaining_width:
-                use_new_line = True
-
-            # If this isn't the first word on the line and it has display width,
-            # add a space before it if there is room or print it on the next line.
-            elif cur_line_width > 0 and word_width > 0:
-                if word_width < remaining_width:
-                    word_to_add = ' ' + word_to_add
-                    word_width += 1
-                else:
-                    use_new_line = True
-
-            # Check if the word is wider than a line allows
-            if use_new_line:
-                # Start the word on the next line
+            # If the word is wider than max width of a line, wrap it across multiple lines
+            if word_width > max_width:
                 if cur_line_width > 0:
+                    # Start the long word on its own line
                     wrapped_buf.write('\n')
                     total_lines += 1
                 wrapped_word, lines_used, cur_line_width = TableCreator._wrap_long_word(word_to_add,
@@ -177,8 +163,24 @@ class TableCreator:
                 # Write the word to the buffer
                 wrapped_buf.write(wrapped_word)
                 total_lines += lines_used - 1
-
             else:
+                remaining_width = max_width - cur_line_width
+                start_new_line = False
+
+                # If this isn't the first word on the line and it has display width,
+                # add a space before it if there is room or print it on the next line.
+                if cur_line_width > 0 and word_width > 0:
+                    if word_width < remaining_width:
+                        word_to_add = ' ' + word_to_add
+                        word_width += 1
+                    else:
+                        start_new_line = True
+
+                if word_width > remaining_width or start_new_line:
+                    wrapped_buf.write('\n')
+                    total_lines += 1
+                    cur_line_width = 0
+
                 cur_line_width += word_width
                 wrapped_buf.write(word_to_add)
 
