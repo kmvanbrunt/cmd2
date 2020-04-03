@@ -7,6 +7,9 @@ from wcwidth import wcwidth
 
 from . import ansi, constants, utils
 
+SPACE = ' '
+EMPTY = ''
+
 
 class Column:
     """Table column configuration"""
@@ -75,7 +78,7 @@ class TableCreator:
         :return: Tuple(wrapped text, lines used, display width of last line)
         """
         if not word:
-            return '', 0, 0
+            return EMPTY, 0, 0
 
         styles = utils.get_styles_in_text(word)
         wrapped_buf = io.StringIO()
@@ -91,10 +94,10 @@ class TableCreator:
             # We've reached the last line. Let truncate_line do the rest.
             if total_lines == max_lines:
                 # If this isn't the last word, but it's gonna fill the final line, then force truncate_line
-                # to place an ellipsis at the end of it by appending 1 character to it.
+                # to place an ellipsis at the end of it by making the word too wide.
                 remaining_word = word[char_index:]
                 if not is_last_word and ansi.style_aware_wcswidth(remaining_word) == max_width:
-                    remaining_word += 'a'
+                    remaining_word += "EXTRA"
 
                 truncated_line = utils.truncate_line(remaining_word, max_width)
                 cur_line_width = ansi.style_aware_wcswidth(truncated_line)
@@ -149,7 +152,7 @@ class TableCreator:
         :return: wrapped text
         """
         def is_last_word() -> bool:
-            """Check if we've reached the last word of the text being wrapped"""
+            """Check if we've parsed the last word of the text being wrapped"""
             return data_line_index == len(data_str_lines) - 1 and char_index == len(data_line) - 1
 
         def add_word(word_to_add: str):
@@ -184,7 +187,7 @@ class TableCreator:
                 # add a space before it if there is room or print it on the next line.
                 if cur_line_width > 0 and word_width > 0:
                     if word_width < remaining_width:
-                        word_to_add = ' ' + word_to_add
+                        word_to_add = SPACE + word_to_add
                         word_width += 1
                     else:
                         start_new_line = True
@@ -196,9 +199,9 @@ class TableCreator:
                     remaining_width = max_width
 
                 # If this isn't the last word, but it's gonna fill the final line, then force truncate_line
-                # to place an ellipsis at the end of it by appending 1 character to it.
+                # to place an ellipsis at the end of it by making the word too wide.
                 if not is_last_word() and total_lines == max_lines and word_width == remaining_width:
-                    word_to_add = utils.truncate_line(word_to_add + "a", remaining_width)
+                    word_to_add = utils.truncate_line(word_to_add + "EXTRA", remaining_width)
 
                 cur_line_width += word_width
                 wrapped_buf.write(word_to_add)
@@ -241,7 +244,7 @@ class TableCreator:
                 cur_char_width = ansi.style_aware_wcswidth(cur_char)
                 char_index += 1
 
-                if cur_char == ' ':
+                if cur_char == SPACE:
                     # If we've reached the end of a word, then add the word to the wrapped text
                     if cur_word_buf.tell() > 0:
                         add_word(cur_word_buf.getvalue())
@@ -268,8 +271,7 @@ class TableCreator:
             # Stop line loop if we've written to max_lines
             if total_lines == max_lines:
                 # If all the text didn't fit, make the last character an ellipsis.
-                # It won't already be one if the last line didn't need to be truncated.
-                if not is_last_word() and cur_line_width < max_width:
+                if data_line_index < len(data_str_lines) - 1 or char_index < len(data_line):
                     wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
                 break
 
@@ -292,7 +294,7 @@ class TableCreator:
             alignment = col.data_alignment
 
         # Convert data to string and replace tabs with spaces
-        data_str = str(data).replace('\t', ' ' * self.tab_width)
+        data_str = str(data).replace('\t', SPACE * self.tab_width)
 
         # Wrap text in this cell
         data_str = self._wrap_text(data_str, col.width, col.max_data_lines)
@@ -355,7 +357,7 @@ class TableCreator:
 
                 # Otherwise fill this cell with fill_char
                 else:
-                    row_buf.write(utils.align_left('', fill_char=fill_char, width=cell.width))
+                    row_buf.write(utils.align_left(EMPTY, fill_char=fill_char, width=cell.width))
 
                 if cell_index < len(self.cols) - 1:
                     row_buf.write(inter_cell)
@@ -368,8 +370,8 @@ class TableCreator:
 
         return row_buf.getvalue()
 
-    def generate_header_row(self, *, fill_char: str = ' ', pre_line: str = '',
-                            inter_cell: str = '  ', post_line: str = '') -> str:
+    def generate_header_row(self, *, fill_char: str = SPACE, pre_line: str = EMPTY,
+                            inter_cell: str = (2 * SPACE), post_line: str = EMPTY) -> str:
         """
         Generate the header row
         :param fill_char: character that fills remaining space in a cell. Defaults to space.
@@ -384,8 +386,8 @@ class TableCreator:
         return self._generate_row(data, is_header=True, fill_char=fill_char,
                                   pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
 
-    def generate_data_row(self, data: List[Any], *, fill_char: str = ' ',
-                          pre_line: str = '', inter_cell: str = '  ', post_line: str = '') -> str:
+    def generate_data_row(self, data: List[Any], *, fill_char: str = SPACE,
+                          pre_line: str = EMPTY, inter_cell: str = (2 * SPACE), post_line: str = EMPTY) -> str:
         """
         Generate a table data row
         :param data: list of data the same length as cols
