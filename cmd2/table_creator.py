@@ -211,9 +211,13 @@ class TableCreator:
             while char_index < len(data_line):
                 if total_lines == max_lines:
                     if cur_line_width < max_width:
-                        wrapped_buf.write(utils.truncate_line(cur_word_buf.getvalue() + data_line[char_index:],
-                                                              max_width - cur_line_width))
-                    cur_word_buf = io.StringIO()
+                        # If this line already has a word, put a space before the next one
+                        padding = ' ' if cur_line_width > 0 else ''
+                        truncated_line = utils.truncate_line(padding + cur_word_buf.getvalue() + data_line[char_index:],
+                                                             max_width - cur_line_width)
+                        cur_line_width += ansi.style_aware_wcswidth(truncated_line)
+                        wrapped_buf.write(truncated_line)
+                        cur_word_buf = io.StringIO()
                     break
 
                 # Check if we're at a style sequence. These don't count toward display width.
@@ -253,9 +257,10 @@ class TableCreator:
             # Stop line loop if we've written to max_lines
             if total_lines == max_lines:
                 # If all the text didn't fit, make the last character an ellipsis.
-                # It won't already be one if the last word written did not need to be truncated.
+                # It won't already be one if the last line didn't need to be truncated.
                 if data_line_index < len(data_str_lines) - 1 or char_index < len(data_line) - 1:
-                    wrapped_buf.seek(wrapped_buf.tell() - 1)
+                    if cur_line_width == max_width:
+                        wrapped_buf.seek(wrapped_buf.tell() - 1)
                     wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
                 break
 
