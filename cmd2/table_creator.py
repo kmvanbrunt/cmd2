@@ -1,6 +1,7 @@
 # coding=utf-8
 """Table creation API"""
 import io
+from enum import Enum
 from typing import Any, List, Optional, Tuple, Union
 
 from wcwidth import wcwidth
@@ -11,19 +12,35 @@ SPACE = ' '
 EMPTY = ''
 
 
+class VerticalAlignment(Enum):
+    TOP = 1
+    MIDDLE = 2
+    BOTTOM = 3
+
+
+class HorizontalAlignment(Enum):
+    LEFT = 1
+    CENTER = 2
+    RIGHT = 3
+
+
 class Column:
     """Table column configuration"""
     def __init__(self, header: str, *, width: Optional[int] = None,
-                 header_alignment: utils.TextAlignment = utils.TextAlignment.LEFT,
-                 data_alignment: utils.TextAlignment = utils.TextAlignment.LEFT,
+                 header_vert_align: VerticalAlignment = VerticalAlignment.BOTTOM,
+                 header_horiz_align: HorizontalAlignment = HorizontalAlignment.LEFT,
+                 data_vert_align: VerticalAlignment = VerticalAlignment.TOP,
+                 data_horiz_align: HorizontalAlignment = HorizontalAlignment.LEFT,
                  max_data_lines: Union[int, float] = constants.INFINITY) -> None:
         """
         Column initializer
         :param header: label for column header
         :param width: display width of column (defaults to width of header or 1 if header is blank)
                       header and data text will wrap within this width using word-based wrapping
-        :param header_alignment: how to align header (defaults to left)
-        :param data_alignment: how to align data (defaults to left)
+        :param header_vert_align: vertical alignment of header cells (defaults to bottom)
+        :param header_horiz_align: horizontal alignment of header cells (defaults to left)
+        :param data_vert_align: vertical alignment of data cells (defaults to top)
+        :param data_horiz_align: horizontal alignment of data cells (defaults to left)
         :param max_data_lines: maximum data lines allowed in a cell. If line count exceeds this, then the final
                                line displayed will be truncated with an ellipsis. (defaults to INFINITY)
         :raises ValueError if width is less than 1
@@ -42,8 +59,10 @@ class Column:
         else:
             self.width = width
 
-        self.header_alignment = header_alignment
-        self.data_alignment = data_alignment
+        self.header_vert_align = header_vert_align
+        self.header_horiz_align = header_horiz_align
+        self.data_vert_align = data_vert_align
+        self.data_horiz_align = data_horiz_align
 
         if max_data_lines < 1:
             raise ValueError("Max data lines cannot be less than 1")
@@ -301,10 +320,7 @@ class TableCreator:
         :return: Tuple of cell lines and the display width of the cell
         """
         # Align the text according to Column parameters
-        if is_header:
-            alignment = col.header_alignment
-        else:
-            alignment = col.data_alignment
+        horiz_alignment = col.header_horiz_align if is_header else col.data_horiz_align
 
         # Convert data to string and replace tabs with spaces
         data_str = str(data).replace('\t', SPACE * self.tab_width)
@@ -312,9 +328,15 @@ class TableCreator:
         # Wrap text in this cell
         data_str = self._wrap_text(data_str, col.width, col.max_data_lines)
 
-        # Align the text
-        aligned_text = utils.align_text(data_str, fill_char=fill_char, width=col.width,
-                                        tab_width=self.tab_width, alignment=alignment)
+        # Align the text horizontally
+        if horiz_alignment == HorizontalAlignment.LEFT:
+            text_alignment = utils.TextAlignment.LEFT
+        elif horiz_alignment == HorizontalAlignment.CENTER:
+            text_alignment = utils.TextAlignment.CENTER
+        else:
+            text_alignment = utils.TextAlignment.RIGHT
+
+        aligned_text = utils.align_text(data_str, fill_char=fill_char, width=col.width, alignment=text_alignment)
 
         lines = aligned_text.splitlines()
         cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
