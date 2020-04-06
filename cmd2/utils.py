@@ -717,7 +717,7 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
     :param fill_char: character that fills the alignment gap. Defaults to space. (Cannot be a line breaking character)
     :param width: display width of the aligned text. Defaults to width of the terminal.
     :param tab_width: any tabs in the text will be replaced with this many spaces. if fill_char is a tab, then it will
-                      be converted to a space.
+                      be converted to one space.
     :param truncate: if True, then each line will be shortened to fit within the display width. The truncated
                      portions are replaced by a '…' character. Defaults to False.
     :return: aligned text
@@ -738,8 +738,7 @@ def align_text(text: str, alignment: TextAlignment, *, fill_char: str = ' ',
 
     # Handle tabs
     text = text.replace('\t', ' ' * tab_width)
-    if fill_char == '\t':
-        fill_char = ' '
+    fill_char = fill_char.replace('\t', ' ')
 
     if len(ansi.strip_style(fill_char)) != 1:
         raise TypeError("Fill character must be exactly one character long")
@@ -848,7 +847,7 @@ def align_left(text: str, *, fill_char: str = ' ', width: Optional[int] = None,
     :param fill_char: character that fills the alignment gap. Defaults to space. (Cannot be a line breaking character)
     :param width: display width of the aligned text. Defaults to width of the terminal.
     :param tab_width: any tabs in the text will be replaced with this many spaces. if fill_char is a tab, then it will
-                      be converted to a space.
+                      be converted to one space.
     :param truncate: if True, then text will be shortened to fit within the display width. The truncated portion is
                      replaced by a '…' character. Defaults to False.
     :return: left-aligned text
@@ -871,7 +870,7 @@ def align_center(text: str, *, fill_char: str = ' ', width: Optional[int] = None
     :param fill_char: character that fills the alignment gap. Defaults to space. (Cannot be a line breaking character)
     :param width: display width of the aligned text. Defaults to width of the terminal.
     :param tab_width: any tabs in the text will be replaced with this many spaces. if fill_char is a tab, then it will
-                      be converted to a space.
+                      be converted to one space.
     :param truncate: if True, then text will be shortened to fit within the display width. The truncated portion is
                      replaced by a '…' character. Defaults to False.
     :return: centered text
@@ -894,7 +893,7 @@ def align_right(text: str, *, fill_char: str = ' ', width: Optional[int] = None,
     :param fill_char: character that fills the alignment gap. Defaults to space. (Cannot be a line breaking character)
     :param width: display width of the aligned text. Defaults to width of the terminal.
     :param tab_width: any tabs in the text will be replaced with this many spaces. if fill_char is a tab, then it will
-                      be converted to a space.
+                      be converted to one space.
     :param truncate: if True, then text will be shortened to fit within the display width. The truncated portion is
                      replaced by a '…' character. Defaults to False.
     :return: right-aligned text
@@ -924,7 +923,7 @@ def truncate_line(line: str, max_width: int, *, tab_width: int = 4) -> str:
     :param max_width: the maximum display width the resulting string is allowed to have
     :param tab_width: any tabs in the text will be replaced with this many spaces
     :return: line that has a display width less than or equal to width
-    :raises: ValueError if text contains an unprintable character like a new line
+    :raises: ValueError if text contains an unprintable character like a newline
              ValueError if max_width is less than 1
     """
     import io

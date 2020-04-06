@@ -81,7 +81,8 @@ class TableCreator:
         """
         TableCreator initializer
         :param cols: column definitions for this table
-        :param tab_width: all tabs will be replaced with this many spaces
+        :param tab_width: all tabs will be replaced with this many spaces. if a row's fill_char is a tab, then it will
+                          be converted to one space.
         """
         self.cols = cols
         self.tab_width = tab_width
@@ -97,9 +98,6 @@ class TableCreator:
         :param is_last_word: True if this is the last word of the total text being wrapped
         :return: Tuple(wrapped text, lines used, display width of last line)
         """
-        if not word:
-            return EMPTY, 0, 0
-
         styles = utils.get_styles_in_text(word)
         wrapped_buf = io.StringIO()
 
@@ -327,7 +325,7 @@ class TableCreator:
         data_str = str(data).replace('\t', SPACE * self.tab_width)
 
         # Wrap text in this cell
-        data_str = self._wrap_text(data_str, col.width, col.max_data_lines)
+        wrapped_text = self._wrap_text(data_str, col.width, col.max_data_lines)
 
         # Align the text horizontally
         if horiz_alignment == HorizontalAlignment.LEFT:
@@ -337,25 +335,28 @@ class TableCreator:
         else:
             text_alignment = utils.TextAlignment.RIGHT
 
-        aligned_text = utils.align_text(data_str, fill_char=fill_char, width=col.width, alignment=text_alignment)
+        aligned_text = utils.align_text(wrapped_text, fill_char=fill_char, width=col.width, alignment=text_alignment)
 
         lines = deque(aligned_text.splitlines())
         cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
         return lines, cell_width
 
     def _generate_row(self, data: List[Any], is_header: bool, fill_char: str,
-                      pre_line, inter_cell, post_line) -> str:
+                      pre_line: str, inter_cell: str, post_line: str) -> str:
         """
         Generate a table data row
         :param data: list of data the same length as cols
         :param is_header: True if writing a header cell, otherwise writing a data cell
         :param fill_char: character that fills remaining space in a cell. If your text has a background color,
                           then give fill_char the same background color. (Cannot be a line breaking character)
-        :param pre_line: characters to print after a row line
-        :param inter_cell: characters to print between cell lines
-        :param post_line: characters to print after a row line
+        :param pre_line: string to print after a row line
+        :param inter_cell: string to print between cell lines
+        :param post_line: string to print after a row line
         :return: row string
-        :raises: ValueError if data isn't the same length as self.cols
+        :raises ValueError if data isn't the same length as self.cols
+                TypeError if fill_char is more than one character (not including ANSI style sequences)
+                ValueError if fill_char, pre_line, inter_cell, or post_line contains an unprintable
+                character like a newline
         """
         class Cell:
             """Inner class which represents a table cell"""
@@ -368,6 +369,22 @@ class TableCreator:
 
         if len(self.cols) != len(data):
             raise ValueError("Length of cols must match length of data")
+
+        # Replace tabs (tabs in data strings will be handled in _generate_cell_lines())
+        fill_char = fill_char.replace('\t', SPACE)
+        pre_line = pre_line.replace('\t', SPACE * self.tab_width)
+        inter_cell = inter_cell.replace('\t', SPACE * self.tab_width)
+        post_line = post_line.replace('\t', SPACE * self.tab_width)
+
+        # Validate fill_char character count
+        if len(ansi.strip_style(fill_char)) != 1:
+            raise TypeError("Fill character must be exactly one character long")
+
+        # Look for unprintable characters
+        validation_dict = {'fill_char': fill_char, 'pre_line': pre_line, 'inter_cell': inter_cell, 'post_line': post_line}
+        for key, val in validation_dict.items():
+            if ansi.style_aware_wcswidth(val) == -1:
+                raise (ValueError("{} contains an unprintable character".format(key)))
 
         # Number of lines this row uses
         total_lines = 0
@@ -435,11 +452,13 @@ class TableCreator:
         Generate the header row
         :param fill_char: character that fills remaining space in a cell. Defaults to space.
                           (Cannot be a line breaking character)
-        :param pre_line: characters to print after a row line (Defaults to blank)
-        :param inter_cell: characters to print between cell lines (Defaults to 2 spaces)
-        :param post_line: characters to print after a row line (Defaults to blank)
+        :param pre_line: string to print after a row line (Defaults to blank)
+        :param inter_cell: string to print between cell lines (Defaults to 2 spaces)
+        :param post_line: string to print after a row line (Defaults to blank)
         :return: header row string
-        :raises: ValueError if divider is an unprintable character like a newline
+        :raises TypeError if fill_char is more than one character (not including ANSI style sequences)
+                ValueError if fill_char, pre_line, inter_cell, or post_line contains an unprintable
+                character like a newline
         """
         data = [col.header for col in self.cols]
         return self._generate_row(data, is_header=True, fill_char=fill_char,
@@ -452,11 +471,14 @@ class TableCreator:
         :param data: list of data the same length as cols
         :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
                           color, then give fill_char the same background color. (Cannot be a line breaking character)
-        :param pre_line: characters to print after a row line (Defaults to blank)
-        :param inter_cell: characters to print between cell lines (Defaults to 2 spaces)
-        :param post_line: characters to print after a row line (Defaults to blank)
+        :param pre_line: string to print after a row line (Defaults to blank)
+        :param inter_cell: string to print between cell lines (Defaults to 2 spaces)
+        :param post_line: string to print after a row line (Defaults to blank)
         :return: data row string
-        :raises: ValueError if data isn't the same length as self.cols
+        :raises ValueError if data isn't the same length as self.cols
+                TypeError if fill_char is more than one character (not including ANSI style sequences)
+                ValueError if fill_char, pre_line, inter_cell, or post_line contains an unprintable
+                character like a newline
         """
         return self._generate_row(data, is_header=False, fill_char=fill_char,
                                   pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
