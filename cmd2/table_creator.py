@@ -1,8 +1,9 @@
 # coding=utf-8
 """Table creation API"""
 import io
+from collections import deque
 from enum import Enum
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Deque, List, Optional, Tuple, Union
 
 from wcwidth import wcwidth
 
@@ -309,7 +310,7 @@ class TableCreator:
 
         return wrapped_buf.getvalue()
 
-    def _generate_cell_lines(self, data: Any, is_header: bool, col: Column, fill_char: str) -> Tuple[List[str], int]:
+    def _generate_cell_lines(self, data: Any, is_header: bool, col: Column, fill_char: str) -> Tuple[Deque[str], int]:
         """
         Generate the lines of a table cell
         :param data: data to be included in cell
@@ -317,7 +318,7 @@ class TableCreator:
         :param col: Column definition for this cell
         :param fill_char: character that fills remaining space in a cell. If your text has a background color,
                           then give fill_char the same background color. (Cannot be a line breaking character)
-        :return: Tuple of cell lines and the display width of the cell
+        :return: Tuple of cell lines deque and the display width of the cell
         """
         # Align the text according to Column parameters
         horiz_alignment = col.header_horiz_align if is_header else col.data_horiz_align
@@ -338,7 +339,7 @@ class TableCreator:
 
         aligned_text = utils.align_text(data_str, fill_char=fill_char, width=col.width, alignment=text_alignment)
 
-        lines = aligned_text.splitlines()
+        lines = deque(aligned_text.splitlines())
         cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
         return lines, cell_width
 
@@ -368,31 +369,54 @@ class TableCreator:
         if len(self.cols) != len(data):
             raise ValueError("Length of cols must match length of data")
 
-        # Build a list of cells for this row
-        cells = []
-        num_lines = 0
+        # Number of lines this row uses
+        total_lines = 0
+
+        # Generate the cells for this row
+        cells = list()
 
         for col_index, col in enumerate(self.cols):
             cell = Cell()
             cell.lines, cell.width = self._generate_cell_lines(data[col_index], is_header, col, fill_char)
             cells.append(cell)
-            num_lines = max(len(cell.lines), num_lines)
+            total_lines = max(len(cell.lines), total_lines)
 
         row_buf = io.StringIO()
 
+        # Vertically align each cell
+        for cell_index, cell in enumerate(cells):
+            col = self.cols[cell_index]
+            vert_align = col.header_vert_align if is_header else col.data_vert_align
+
+            # Check if this cell need vertical filler
+            line_diff = total_lines - len(cell.lines)
+            if line_diff == 0:
+                continue
+
+            # Add vertical filler lines
+            padding_line = utils.align_left(EMPTY, fill_char=fill_char, width=cell.width)
+            if vert_align == VerticalAlignment.TOP:
+                to_top = 0
+                to_bottom = line_diff
+            elif vert_align == VerticalAlignment.MIDDLE:
+                to_top = line_diff // 2
+                to_bottom = line_diff - to_top
+            else:
+                to_top = line_diff
+                to_bottom = 0
+
+            for i in range(to_top):
+                cell.lines.appendleft(padding_line)
+            for i in range(to_bottom):
+                cell.lines.append(padding_line)
+
         # Build this row one line at a time
-        for line_index in range(num_lines):
+        for line_index in range(total_lines):
             for cell_index, cell in enumerate(cells):
                 if cell_index == 0:
                     row_buf.write(pre_line)
 
-                # Check if this cell has a line at this index
-                if line_index < len(cell.lines):
-                    row_buf.write(cell.lines[line_index])
-
-                # Otherwise fill this cell with fill_char
-                else:
-                    row_buf.write(utils.align_left(EMPTY, fill_char=fill_char, width=cell.width))
+                row_buf.write(cell.lines[line_index])
 
                 if cell_index < len(self.cols) - 1:
                     row_buf.write(inter_cell)
@@ -400,7 +424,7 @@ class TableCreator:
                     row_buf.write(post_line)
 
             # Add a newline if this is not the last row
-            if line_index < num_lines - 1:
+            if line_index < total_lines - 1:
                 row_buf.write('\n')
 
         return row_buf.getvalue()
