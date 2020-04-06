@@ -5,7 +5,7 @@ Unit testing for cmd2/table_creator.py module
 import pytest
 
 from cmd2 import ansi, utils
-from cmd2.table_creator import Column, TableCreator
+from cmd2.table_creator import Column, HorizontalAlignment, TableCreator, VerticalAlignment
 
 
 def test_column_creation():
@@ -35,7 +35,40 @@ def test_column_creation():
         Column("Column 1", max_data_lines=0)
     assert "Max data lines cannot be less than 1" in str(excinfo.value)
 
-#def test_
+
+def test_column_alignment():
+    column_1 = Column("Col 1", width=10,
+                      header_horiz_align=HorizontalAlignment.LEFT, header_vert_align=VerticalAlignment.TOP,
+                      data_horiz_align=HorizontalAlignment.LEFT, data_vert_align=VerticalAlignment.TOP)
+    column_2 = Column("Col 2", width=10,
+                      header_horiz_align=HorizontalAlignment.CENTER, header_vert_align=VerticalAlignment.MIDDLE,
+                      data_horiz_align=HorizontalAlignment.CENTER, data_vert_align=VerticalAlignment.MIDDLE)
+    column_3 = Column("Col 3", width=10,
+                      header_horiz_align=HorizontalAlignment.RIGHT, header_vert_align=VerticalAlignment.BOTTOM,
+                      data_horiz_align=HorizontalAlignment.RIGHT, data_vert_align=VerticalAlignment.BOTTOM)
+    column_4 = Column("Three\nline\nheader", width=10)
+
+    columns = [column_1, column_2, column_3, column_4]
+    tc = TableCreator(columns)
+
+    # Check defaults
+    assert column_4.header_horiz_align == HorizontalAlignment.LEFT
+    assert column_4.header_vert_align == VerticalAlignment.BOTTOM
+    assert column_4.data_horiz_align == HorizontalAlignment.LEFT
+    assert column_4.data_vert_align == VerticalAlignment.TOP
+
+    # Create a header row
+    header = tc.generate_header_row()
+    assert header == ('Col 1                               Three     \n'
+                      '              Col 2                 line      \n'
+                      '                             Col 3  header    ')
+
+    # Create a data row
+    data = ["Val 1", "Val 2", "Val 3", "Three\nline\ndata"]
+    row = tc.generate_data_row(data)
+    assert row == ('Val 1                               Three     \n'
+                   '              Val 2                 line      \n'
+                   '                             Val 3  data      ')
 #
 #
 #
