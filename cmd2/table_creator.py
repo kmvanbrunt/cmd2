@@ -283,8 +283,8 @@ class TableCreator:
 
             # Stop line loop if we've written to max_lines
             if total_lines == max_lines:
-                # If this isn't the last line and there is space left on the line, then add an ellipsis
-                if data_line_index < len(data_str_lines) and cur_line_width < max_width:
+                # If this isn't the last data line and there is space left on the final wrapped line, then add an ellipsis
+                if data_line_index < len(data_str_lines) - 1 and cur_line_width < max_width:
                     wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
                 break
 
