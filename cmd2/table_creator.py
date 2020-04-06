@@ -13,35 +13,35 @@ SPACE = ' '
 EMPTY = ''
 
 
-class VerticalAlignment(Enum):
-    TOP = 1
-    MIDDLE = 2
-    BOTTOM = 3
-
-
 class HorizontalAlignment(Enum):
     LEFT = 1
     CENTER = 2
     RIGHT = 3
 
 
+class VerticalAlignment(Enum):
+    TOP = 1
+    MIDDLE = 2
+    BOTTOM = 3
+
+
 class Column:
     """Table column configuration"""
     def __init__(self, header: str, *, width: Optional[int] = None,
-                 header_vert_align: VerticalAlignment = VerticalAlignment.BOTTOM,
                  header_horiz_align: HorizontalAlignment = HorizontalAlignment.LEFT,
-                 data_vert_align: VerticalAlignment = VerticalAlignment.TOP,
+                 header_vert_align: VerticalAlignment = VerticalAlignment.BOTTOM,
                  data_horiz_align: HorizontalAlignment = HorizontalAlignment.LEFT,
+                 data_vert_align: VerticalAlignment = VerticalAlignment.TOP,
                  max_data_lines: Union[int, float] = constants.INFINITY) -> None:
         """
         Column initializer
         :param header: label for column header
         :param width: display width of column (defaults to width of header or 1 if header is blank)
                       header and data text will wrap within this width using word-based wrapping
-        :param header_vert_align: vertical alignment of header cells (defaults to bottom)
         :param header_horiz_align: horizontal alignment of header cells (defaults to left)
-        :param data_vert_align: vertical alignment of data cells (defaults to top)
+        :param header_vert_align: vertical alignment of header cells (defaults to bottom)
         :param data_horiz_align: horizontal alignment of data cells (defaults to left)
+        :param data_vert_align: vertical alignment of data cells (defaults to top)
         :param max_data_lines: maximum data lines allowed in a cell. If line count exceeds this, then the final
                                line displayed will be truncated with an ellipsis. (defaults to INFINITY)
         :raises ValueError if width is less than 1
@@ -60,10 +60,10 @@ class Column:
         else:
             self.width = width
 
-        self.header_vert_align = header_vert_align
         self.header_horiz_align = header_horiz_align
-        self.data_vert_align = data_vert_align
+        self.header_vert_align = header_vert_align
         self.data_horiz_align = data_horiz_align
+        self.data_vert_align = data_vert_align
 
         if max_data_lines < 1:
             raise ValueError("Max data lines cannot be less than 1")
