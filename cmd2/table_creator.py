@@ -50,11 +50,10 @@ class Column:
         self.header = header
 
         if width is None:
-            if not self.header:
-                self.width = 1
-            else:
-                # Find the width of the longest line in header
-                self.width = max([ansi.style_aware_wcswidth(line) for line in self.header.splitlines()])
+            # Use the width of the widest line in the header or 1 if the header has no width
+            line_widths = [ansi.style_aware_wcswidth(line) for line in self.header.splitlines()]
+            line_widths.append(1)
+            self.width = max(line_widths)
         elif width < 1:
             raise ValueError("Column width cannot be less than 1")
         else:
