@@ -5,8 +5,8 @@ import functools
 import sys
 from typing import List
 
-from cmd2 import ansi, utils
-from cmd2.table_creator import Column, TableCreator
+from cmd2 import ansi
+from cmd2.table_creator import Column, HorizontalAlignment, TableCreator
 
 
 def ansi_print(text):
@@ -20,18 +20,18 @@ style_bg = functools.partial(ansi.style, bg=ansi.bg.bright_black)
 
 # Table Columns
 columns: List[Column] = list()
-columns.append(Column("Name", width=20, wrap_data=True))
-columns.append(Column("Address", width=40, wrap_data=True))
+columns.append(Column("Name", width=20))
+columns.append(Column("Address", width=40))
 columns.append(Column("Income", width=13,
-                      header_alignment=utils.TextAlignment.RIGHT,
-                      data_alignment=utils.TextAlignment.RIGHT))
+                      header_horiz_align=HorizontalAlignment.RIGHT,
+                      data_horiz_align=HorizontalAlignment.RIGHT,))
 
 # Table data
 data_rows: List[List[str]] = list()
 data_rows.append(["Billy Smith",
                   "123 Sesame St.\n"
                   "Fake Town, USA 33445", "$100,333.03"])
-data_rows.append(["William LongFellow Marmaduke III",
+data_rows.append(["William Longfellow Marmaduke III",
                   "984 Really Long Street Name Which Will Wrap Nicely\n"
                   "Apt 22G\n"
                   "Pensacola, FL 99888", "$55,135.22"])
