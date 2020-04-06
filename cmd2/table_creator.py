@@ -169,6 +169,9 @@ class TableCreator:
         :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
         :return: wrapped text
         """
+        ############################################################################################################
+        # _wrap_text() inner functions
+        ############################################################################################################
         def is_last_word() -> bool:
             """Called from loop to check if we've parsed the last word of the text being wrapped"""
             return data_line_index == len(data_str_lines) - 1 and char_index == len(data_line) - 1
@@ -237,6 +240,9 @@ class TableCreator:
             cur_line_width += word_width
             wrapped_buf.write(word_to_add)
 
+        ############################################################################################################
+        # _wrap_text() main code
+        ############################################################################################################
         # Buffer of the wrapped text
         wrapped_buf = io.StringIO()
 
@@ -381,7 +387,8 @@ class TableCreator:
             raise TypeError("Fill character must be exactly one character long")
 
         # Look for unprintable characters
-        validation_dict = {'fill_char': fill_char, 'pre_line': pre_line, 'inter_cell': inter_cell, 'post_line': post_line}
+        validation_dict = {'fill_char': fill_char, 'pre_line': pre_line,
+                           'inter_cell': inter_cell, 'post_line': post_line}
         for key, val in validation_dict.items():
             if ansi.style_aware_wcswidth(val) == -1:
                 raise (ValueError("{} contains an unprintable character".format(key)))
