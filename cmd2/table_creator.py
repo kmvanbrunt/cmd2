@@ -42,7 +42,7 @@ class Column:
         :param header_vert_align: vertical alignment of header cells (defaults to bottom)
         :param data_horiz_align: horizontal alignment of data cells (defaults to left)
         :param data_vert_align: vertical alignment of data cells (defaults to top)
-        :param max_data_lines: maximum data lines allowed in a cell. If line count exceeds this, then the final
+        :param max_data_lines: maximum lines allowed in a data cell. If line count exceeds this, then the final
                                line displayed will be truncated with an ellipsis. (defaults to INFINITY)
         :raises ValueError if width is less than 1
                 ValueError if max_data_lines is less than 1
@@ -323,16 +323,15 @@ class TableCreator:
                           then give fill_char the same background color. (Cannot be a line breaking character)
         :return: Tuple of cell lines deque and the display width of the cell
         """
-        # Align the text according to Column parameters
-        horiz_alignment = col.header_horiz_align if is_header else col.data_horiz_align
-
         # Convert data to string and replace tabs with spaces
         data_str = str(data).replace('\t', SPACE * self.tab_width)
 
         # Wrap text in this cell
-        wrapped_text = self._wrap_text(data_str, col.width, col.max_data_lines)
+        max_lines = constants.INFINITY if is_header else col.max_data_lines
+        wrapped_text = self._wrap_text(data_str, col.width, max_lines)
 
         # Align the text horizontally
+        horiz_alignment = col.header_horiz_align if is_header else col.data_horiz_align
         if horiz_alignment == HorizontalAlignment.LEFT:
             text_alignment = utils.TextAlignment.LEFT
         elif horiz_alignment == HorizontalAlignment.CENTER:
