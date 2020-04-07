@@ -97,21 +97,26 @@ def test_wrap_long_word():
 def test_wrap_long_word_max_data_lines():
     column_1 = Column("Col 1", width=10, max_data_lines=2)
     column_2 = Column("Col 2", width=10, max_data_lines=2)
+    column_3 = Column("Col 3", width=10, max_data_lines=2)
 
-    columns = [column_1, column_2]
+    columns = [column_1, column_2, column_3]
     tc = TableCreator(columns)
 
     data = list()
 
-    # This one will exactly fill the last line. Made sure ellipsis replaces final character.
+    # This long word will exactly fit the last line and it's the final word in the text. No ellipsis should appear.
+    data.append("LongerThan10FitsLast")
+
+    # This long word will exactly fit the last line but it's not the final word in the text.
+    # Make sure ellipsis word's final character.
     data.append("LongerThan10FitsLast\nMore lines")
 
-    # This one will go past the last line. Made sure it is truncated.
+    # This long word will run over the last line. Made sure it is truncated.
     data.append("LongerThan10RunsOverLast")
 
     row = tc.generate_data_row(data)
-    assert row == ('LongerThan  LongerThan\n'
-                   '10FitsLas…  10RunsOve…')
+    assert row == ('LongerThan  LongerThan  LongerThan\n'
+                   '10FitsLast  10FitsLas…  10RunsOve…')
 
 
 def test_wrap_long_char_wider_than_max_width():
