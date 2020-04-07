@@ -98,8 +98,9 @@ def test_wrap_long_word_max_data_lines():
     column_1 = Column("Col 1", width=10, max_data_lines=2)
     column_2 = Column("Col 2", width=10, max_data_lines=2)
     column_3 = Column("Col 3", width=10, max_data_lines=2)
+    column_4 = Column("Col 4", width=10, max_data_lines=1)
 
-    columns = [column_1, column_2, column_3]
+    columns = [column_1, column_2, column_3, column_4]
     tc = TableCreator(columns)
 
     data = list()
@@ -114,9 +115,12 @@ def test_wrap_long_word_max_data_lines():
     # This long word will run over the last line. Made sure it is truncated.
     data.append("LongerThan10RunsOverLast")
 
+    # This long word will start on the final line after another word. Therefore it won't wrap but will instead be truncated.
+    data.append("A LongerThan10RunsOverLast")
+
     row = tc.generate_data_row(data)
-    assert row == ('LongerThan  LongerThan  LongerThan\n'
-                   '10FitsLast  10FitsLas…  10RunsOve…')
+    assert row == ('LongerThan  LongerThan  LongerThan  A LongerT…\n'
+                   '10FitsLast  10FitsLas…  10RunsOve…            ')
 
 
 def test_wrap_long_char_wider_than_max_width():
