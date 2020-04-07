@@ -165,17 +165,18 @@ class TableCreator:
         ############################################################################################################
         # _wrap_text() inner functions
         ############################################################################################################
-        def is_last_word() -> bool:
-            """Called from loop to check if we've parsed the last word of the text being wrapped"""
-            return data_line_index >= len(data_str_lines) - 1 and char_index >= len(data_line) - 1
-
-        def add_word(word_to_add: str):
+        def add_word(word_to_add: str, is_last_word: bool):
             """
             Called from loop to add a word to the wrapped text
             :param word_to_add: the word being added
+            :param is_last_word: True if this is the last word of the total text being wrapped
             """
             nonlocal cur_line_width
             nonlocal total_lines
+
+            # No more space to add word
+            if total_lines == max_lines and cur_line_width == max_width:
+                return
 
             word_width = ansi.style_aware_wcswidth(word_to_add)
 
@@ -196,7 +197,7 @@ class TableCreator:
                     wrapped_word, lines_used, cur_line_width = TableCreator._wrap_long_word(word_to_add,
                                                                                             max_width,
                                                                                             max_lines - total_lines + 1,
-                                                                                            is_last_word())
+                                                                                            is_last_word)
                     # Write the word to the buffer
                     wrapped_buf.write(wrapped_word)
                     total_lines += lines_used - 1
@@ -204,22 +205,15 @@ class TableCreator:
 
             # We aren't going to wrap the word across multiple lines
             remaining_width = max_width - cur_line_width
-            start_new_line = False
 
-            # If this isn't the first word on the line and it has display width,
-            # add a space before it if there is room or print it on the next line.
-            if cur_line_width > 0 and word_width > 0:
-                if word_width < remaining_width or total_lines == max_lines:
-                    word_to_add = SPACE + word_to_add
-                    word_width += 1
-                else:
-                    start_new_line = True
-
-            if start_new_line:
+            if word_width > remaining_width and total_lines < max_lines:
                 wrapped_buf.write('\n')
                 total_lines += 1
                 cur_line_width = 0
                 remaining_width = max_width
+                if word_to_add == SPACE:
+                    word_to_add = ''
+                    word_width = 0
 
             # Check if we've hit the last line we're allowed to create
             if total_lines == max_lines:
@@ -230,7 +224,7 @@ class TableCreator:
 
                 # If this isn't the last word, but it's gonna fill the final line, then force truncate_line
                 # to place an ellipsis at the end of it by making the word too wide.
-                elif not is_last_word() and word_width == remaining_width:
+                elif not is_last_word and word_width == remaining_width:
                     word_to_add = utils.truncate_line(word_to_add + "EXTRA", remaining_width)
 
             cur_line_width += word_width
@@ -274,23 +268,16 @@ class TableCreator:
                     continue
 
                 cur_char = data_line[char_index]
-                cur_char_width = ansi.style_aware_wcswidth(cur_char)
-
                 if cur_char == SPACE:
                     # If we've reached the end of a word, then add the word to the wrapped text
                     if cur_word_buf.tell() > 0:
-                        add_word(cur_word_buf.getvalue())
+                        # is_last_word is False since there is a space after the word
+                        add_word(cur_word_buf.getvalue(), is_last_word=False)
                         cur_word_buf = io.StringIO()
 
-                    # Otherwise add a space or newline to the wrapped text
-                    else:
-                        if cur_char_width + cur_line_width > max_width:
-                            wrapped_buf.write('\n')
-                            total_lines += 1
-                            cur_line_width = 0
-                        else:
-                            wrapped_buf.write(cur_char)
-                            cur_line_width += cur_char_width
+                    # Add the space to the wrapped text
+                    is_last_word = data_line_index == len(data_str_lines) - 1 and char_index == len(data_line) - 1
+                    add_word(cur_char, is_last_word)
                 else:
                     # Add this character to the word buffer
                     cur_word_buf.write(cur_char)
@@ -299,7 +286,8 @@ class TableCreator:
 
             # Add the final word of this line if it's been started
             if cur_word_buf.tell() > 0:
-                add_word(cur_word_buf.getvalue())
+                is_last_word = data_line_index == len(data_str_lines) - 1 and char_index == len(data_line)
+                add_word(cur_word_buf.getvalue(), is_last_word)
 
             # Stop line loop if we've written to max_lines
             if total_lines == max_lines:
