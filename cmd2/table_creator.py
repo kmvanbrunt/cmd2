@@ -206,14 +206,16 @@ class TableCreator:
             # We aren't going to wrap the word across multiple lines
             remaining_width = max_width - cur_line_width
 
+            # Check if we need to start a new line
             if word_width > remaining_width and total_lines < max_lines:
                 wrapped_buf.write('\n')
                 total_lines += 1
                 cur_line_width = 0
                 remaining_width = max_width
+
+                # If a space is ending the line, then just return. It's become a newline instead.
                 if word_to_add == SPACE:
-                    word_to_add = ''
-                    word_width = 0
+                    return
 
             # Check if we've hit the last line we're allowed to create
             if total_lines == max_lines:
