@@ -4,7 +4,7 @@ Unit testing for cmd2/table_creator.py module
 """
 import pytest
 
-from cmd2 import ansi, utils
+from cmd2 import ansi
 from cmd2.table_creator import Column, HorizontalAlignment, TableCreator, VerticalAlignment
 
 
@@ -73,12 +73,18 @@ def test_column_alignment():
 
 def test_wrap_long_word():
     # Make sure words wider than column start on own line and wrap
-    column_1 = Column("Col 1", width=10)
+    column_1 = Column("LongColumnName", width=10)
     column_2 = Column("Col 2", width=10)
 
     columns = [column_1, column_2]
     tc = TableCreator(columns)
 
+    # Test header row
+    header = tc.generate_header_row()
+    assert header == ('LongColumn            \n'
+                      'Name        Col 2     ')
+
+    # Test data row
     data = list()
 
     # Long word should start on the first line (style should not affect width)
