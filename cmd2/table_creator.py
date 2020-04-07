@@ -282,23 +282,22 @@ class TableCreator:
                         add_word(cur_word_buf.getvalue())
                         cur_word_buf = io.StringIO()
 
-                    # Otherwise add this space to the wrapped text
+                    # Otherwise add a space or newline to the wrapped text
                     else:
-                        # Check if we need to start a new line
                         if cur_char_width + cur_line_width > max_width:
                             wrapped_buf.write('\n')
                             total_lines += 1
                             cur_line_width = 0
-
-                        wrapped_buf.write(cur_char)
-                        cur_line_width += cur_char_width
+                        else:
+                            wrapped_buf.write(cur_char)
+                            cur_line_width += cur_char_width
                 else:
                     # Add this character to the word buffer
                     cur_word_buf.write(cur_char)
 
                 char_index += 1
 
-            # Add the final word of this line if its been started
+            # Add the final word of this line if it's been started
             if cur_word_buf.tell() > 0:
                 add_word(cur_word_buf.getvalue())
 
