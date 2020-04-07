@@ -71,6 +71,63 @@ def test_column_alignment():
                    '                             Val 3  data      ')
 
 
+def test_wrap_text():
+    column_1 = Column("Col 1", width=10)
+    tc = TableCreator([column_1])
+
+    # Test normal wrapping
+    data = ['Some text to wrap\nA new line that will wrap\nNot wrap\n 1  2   3']
+    row = tc.generate_data_row(data)
+    assert row == ('Some text \n'
+                   'to wrap   \n'
+                   'A new line\n'
+                   'that will \n'
+                   'wrap      \n'
+                   'Not wrap  \n'
+                   ' 1  2   3 ')
+
+    # Test preserving a multiple space sequence across a line break
+    data = ['First      last one']
+    row = tc.generate_data_row(data)
+    assert row == ('First     \n'
+                   ' last one ')
+
+
+def test_wrap_text_max_lines():
+    column_1 = Column("Col 1", width=10, max_data_lines=2)
+    tc = TableCreator([column_1])
+
+    # Test not needing to truncate the final line
+    data = ['First line last line']
+    row = tc.generate_data_row(data)
+    assert row == ('First line\n'
+                   'last line ')
+
+    # Test having to truncate the last word because it's too long for the final line
+    data = ['First line last lineextratext']
+    row = tc.generate_data_row(data)
+    assert row == ('First line\n'
+                   'last line…')
+
+    # Test having to truncate the last word because it fits the final line but there is more text not being included
+    data = ['First line thistxtfit extra']
+    row = tc.generate_data_row(data)
+    assert row == ('First line\n'
+                   'thistxtfi…')
+
+    # Test having to truncate the last word because it fits the final line but there are more lines not being included
+    data = ['First line thistxtfit\nextra']
+    row = tc.generate_data_row(data)
+    assert row == ('First line\n'
+                   'thistxtfi…')
+
+    # Test having space left on the final line and adding an ellipsis because there are more lines not being included
+    data = ['First line last line\nextra line']
+    row = tc.generate_data_row(data)
+    assert row == ('First line\n'
+                   'last line…')
+
+
 def test_wrap_long_word():
     # Make sure words wider than column start on own line and wrap
     column_1 = Column("LongColumnName", width=10)
@@ -118,7 +175,7 @@ def test_wrap_long_word_max_data_lines():
     # Make sure ellipsis word's final character.
     data.append("LongerThan10FitsLast\nMore lines")
 
-    # This long word will run over the last line. Made sure it is truncated.
+    # This long word will run over the last line. Make sure it is truncated.
     data.append("LongerThan10RunsOverLast")
 
     # This long word will start on the final line after another word. Therefore it won't wrap but will instead be truncated.
@@ -162,108 +219,3 @@ def test_generate_row_exceptions():
     with pytest.raises(ValueError) as excinfo:
         tc.generate_data_row(data)
     assert "Length of cols must match length of data" in str(excinfo.value)
-
-
-#
-#
-#
-# def test_generate_header_row():
-#     column_1 = Column("Column 1")
-#     column_2 = Column("Column 2")
-#     columns = [column_1, column_2]
-#
-#     tc = TableCreator(columns)
-#     header = tc.generate_header_row()
-#     assert header == 'Column 1  Column 2'
-#
-#     # Multiline labels
-#     column_1 = Column("Column 1")
-#     column_2 = Column("Multiline\nLabel")
-#     columns = [column_1, column_2]
-#
-#     tc = TableCreator(columns)
-#     header = tc.generate_header_row()
-#     assert header == ('Column 1  Multiline\n'
-#                       '          Label    ')
-#
-#     # Colored labels
-#     column_1 = Column(ansi.style("Column 1", fg=ansi.fg.bright_yellow))
-#     column_2 = Column("A " + ansi.style("Multiline\nLabel", fg=ansi.fg.green) + " with color")
-#     columns = [column_1, column_2]
-#
-#     tc = TableCreator(columns)
-#     header = tc.generate_header_row()
-#     col_1_line_1 = ansi.RESET_ALL + ansi.fg.bright_yellow + "Column 1" + ansi.fg.reset + ansi.RESET_ALL
-#     col_1_line_2 = '        '
-#     col_2_line_1 = ansi.RESET_ALL + "A " + ansi.fg.green + "Multiline" + ansi.RESET_ALL + '     ' + ansi.RESET_ALL
-#     col_2_line_2 = ansi.RESET_ALL + ansi.fg.green + 'Label' + ansi.fg.reset + ' with color' + ansi.RESET_ALL
-#
-#     assert header == (col_1_line_1 + '  ' + col_2_line_1 + '\n' +
-#                       col_1_line_2 + '  ' + col_2_line_2)
-#
-#
-# def test_column_width():
-#     column_1 = Column("Column 1", width=15)
-#     column_2 = Column("Multiline\nLabel", width=15)
-#     columns = [column_1, column_2]
-#
-#     tc = TableCreator(columns)
-#     header = tc.generate_header_row()
-#     assert header == ('Column 1         Multiline      \n'
-#                       '                 Label          ')
-#
-#     # Blank header label
-#     blank_column = Column("")
-#     assert blank_column.width == 1
-#
-#     # Negative width
-#     with pytest.raises(ValueError) as excinfo:
-#         Column("Column 1", width=-1)
-#     assert "Column width cannot be less than 1" in str(excinfo.value)
-#
-#
-# def test_aligned_header():
-#     column_1 = Column("Column 1", header_vert_align=utils.TextAlignment.RIGHT, width=15)
-#     column_2 = Column("Multiline\nLabel", header_vert_align=utils.TextAlignment.CENTER, width=15)
-#     columns = [column_1, column_2]
-#
-#     tc = TableCreator(columns)
-#     header = tc.generate_header_row()
-#     assert header == ('       Column 1     Multiline   \n'
-#                       '                      Label     ')
-#
-#
-# def test_generate_data_row():
-#     column_1 = Column("Column 1")
-#     column_2 = Column("Column 2")
-#     columns = [column_1, column_2]
-#     tc = TableCreator(columns)
-#
-#     data = ['Data 1', 'Data 2']
-#     row = tc.generate_data_row(data)
-#     assert row == 'Data 1    Data 2  '
-#
-#     # Multiline data
-#     data = ['Split\nData 1\n', 'Split\nData 2']
-#     row = tc.generate_data_row(data)
-#     assert row == ('Split     Split   \n'
-#                    'Data 1    Data 2  ')
-#
-#     # Colored data
-#     column_1 = Column("Column 1", width=30)
-#     column_2 = Column("Column 2", width=30)
-#     columns = [column_1, column_2]
-#     tc = TableCreator(columns)
-#
-#     data_1 = ansi.style_success("Hello") + " I have\n" + ansi.style_warning("colored\n") + "and normal text"
-#     data_2 = "Hello" + " I also have\n" + ansi.style_error("colored\n") + "and normal text"
-#     row = tc.generate_data_row([data_1, data_2])
-#     assert row == ('\x1b[0m\x1b[0m\x1b[32mHello\x1b[39m I have\x1b[0m                  \x1b[0m  Hello I also have             \n'
-#                    '\x1b[0m\x1b[0m\x1b[32m\x1b[39m\x1b[93mcolored\x1b[0m                       \x1b[0m  \x1b[0m\x1b[0m\x1b[91mcolored\x1b[0m                       \x1b[0m\n'
-#                    '\x1b[0m\x1b[0m\x1b[32m\x1b[39m\x1b[93m\x1b[39mand normal text\x1b[0m               \x1b[0m  \x1b[0m\x1b[0m\x1b[91m\x1b[39mand normal text\x1b[0m               \x1b[0m')
-#
-#     # Data with too many columns
-#     data = ['Data 1', 'Data 2', 'Extra Column']
-#     with pytest.raises(ValueError) as excinfo:
-#         tc.generate_data_row(data)
-#     assert "Length of cols must match length of data" in str(excinfo.value)
