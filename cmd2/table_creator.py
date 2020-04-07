@@ -274,14 +274,25 @@ class TableCreator:
                     continue
 
                 cur_char = data_line[char_index]
+                cur_char_width = ansi.style_aware_wcswidth(cur_char)
 
-                # If we've reached the end of a word, then add the word to the wrapped text
-                if cur_char == SPACE and cur_word_buf.tell() > 0:
-                    add_word(cur_word_buf.getvalue())
-                    cur_word_buf = io.StringIO()
+                if cur_char == SPACE:
+                    # If we've reached the end of a word, then add the word to the wrapped text
+                    if cur_word_buf.tell() > 0:
+                        add_word(cur_word_buf.getvalue())
+                        cur_word_buf = io.StringIO()
 
-                # Otherwise add this character to the word buffer
+                    # Otherwise add a space or newline to the wrapped text
+                    else:
+                        if cur_char_width + cur_line_width > max_width:
+                            wrapped_buf.write('\n')
+                            total_lines += 1
+                            cur_line_width = 0
+                        else:
+                            wrapped_buf.write(cur_char)
+                            cur_line_width += cur_char_width
                 else:
+                    # Add this character to the word buffer
                     cur_word_buf.write(cur_char)
 
                 char_index += 1
