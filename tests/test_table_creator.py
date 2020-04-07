@@ -69,6 +69,61 @@ def test_column_alignment():
     assert row == ('Val 1                               Three     \n'
                    '              Val 2                 line      \n'
                    '                             Val 3  data      ')
+
+
+def test_wrap_long_word():
+    # Make sure words wider than column start on own line and wrap
+    column_1 = Column("Col 1", width=10)
+    column_2 = Column("Col 2", width=10)
+
+    columns = [column_1, column_2]
+    tc = TableCreator(columns)
+
+    data = list()
+
+    # Long word should start on the first line (style should not affect width)
+    data.append(ansi.style("LongerThan10", fg=ansi.fg.green))
+
+    # Long word should start on the second line
+    data.append("Word LongerThan10")
+
+    row = tc.generate_data_row(data)
+    expected = (ansi.RESET_ALL + ansi.fg.green + "LongerThan" + ansi.RESET_ALL + "  Word      \n" +
+                ansi.RESET_ALL + ansi.fg.green + "10" + ansi.fg.reset + ansi.RESET_ALL + '        ' + ansi.RESET_ALL + '  LongerThan\n'
+                '            10        ')
+    assert row == expected
+
+
+def test_wrap_long_word_max_data_lines():
+    column_1 = Column("Col 1", width=10, max_data_lines=2)
+    column_2 = Column("Col 2", width=10, max_data_lines=2)
+
+    columns = [column_1, column_2]
+    tc = TableCreator(columns)
+
+    data = list()
+
+    # This one will exactly fill the last line. Made sure ellipsis replaces final character.
+    data.append("LongerThan10FitsLast\nMore lines")
+
+    # This one will go past the last line. Made sure it is truncated.
+    data.append("LongerThan10RunsOverLast")
+
+    row = tc.generate_data_row(data)
+    assert row == ('LongerThan  LongerThan\n'
+                   '10FitsLas…  10RunsOve…')
+
+
+def test_wrap_long_char_wider_than_max_width():
+    """
+    This tests case where a character is wider than max_width. This can happen if max_width
+    is 1 and the text contains wide characters (e.g. East Asian). Replace it with an ellipsis.
+    """
+    column_1 = Column("Col 1", width=1)
+    columns = [column_1]
+    tc = TableCreator(columns)
+    row = tc.generate_data_row(['深'])
+    assert row == '…'
 #
 #
 #
