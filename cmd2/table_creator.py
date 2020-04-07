@@ -179,12 +179,12 @@ class TableCreator:
 
             word_width = ansi.style_aware_wcswidth(word_to_add)
 
-            # If the word is wider than max width of a line, wrap it across multiple lines if it can start on its own line
+            # If the word is wider than max width of a line, attempt to start it on its own line and wrap it
             if word_width > max_width:
                 room_to_add = True
 
                 if cur_line_width > 0:
-                    # The current already has text, check if there is room to start a new line
+                    # The current line already has text, check if there is room to create a new line
                     if total_lines < max_lines:
                         wrapped_buf.write('\n')
                         total_lines += 1
@@ -219,16 +219,19 @@ class TableCreator:
                 wrapped_buf.write('\n')
                 total_lines += 1
                 cur_line_width = 0
+                remaining_width = max_width
 
-            # If this word won't fit on the current line and we reached the last line, truncate the word.
-            elif word_width > remaining_width:
-                word_to_add = utils.truncate_line(word_to_add, remaining_width)
-                word_width = remaining_width
+            # Check if we've hit the last line we're allowed to create
+            if total_lines == max_lines:
+                # If this word won't fit, truncate it
+                if word_width > remaining_width:
+                    word_to_add = utils.truncate_line(word_to_add, remaining_width)
+                    word_width = remaining_width
 
-            # If this isn't the last word, but it's gonna fill the final line, then force truncate_line
-            # to place an ellipsis at the end of it by making the word too wide.
-            elif not is_last_word() and total_lines == max_lines and word_width == remaining_width:
-                word_to_add = utils.truncate_line(word_to_add + "EXTRA", remaining_width)
+                # If this isn't the last word, but it's gonna fill the final line, then force truncate_line
+                # to place an ellipsis at the end of it by making the word too wide.
+                elif not is_last_word() and word_width == remaining_width:
+                    word_to_add = utils.truncate_line(word_to_add + "EXTRA", remaining_width)
 
             cur_line_width += word_width
             wrapped_buf.write(word_to_add)
