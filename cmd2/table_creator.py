@@ -137,17 +137,11 @@ class TableCreator:
                 cur_char_width = wcwidth(cur_char)
 
             if cur_line_width + cur_char_width > max_width:
-                if total_lines < max_lines:
-                    # Adding this char will exceed the max_width. Start a new line.
-                    wrapped_buf.write('\n')
-                    total_lines += 1
-                    cur_line_width = 0
-                    continue
-                else:
-                    # We've use all allowed lines. Add an ellipsis and exit loop.
-                    wrapped_buf.write(constants.HORIZONTAL_ELLIPSIS)
-                    cur_line_width += ansi.style_aware_wcswidth(constants.HORIZONTAL_ELLIPSIS)
-                    break
+                # Adding this char will exceed the max_width. Start a new line.
+                wrapped_buf.write('\n')
+                total_lines += 1
+                cur_line_width = 0
+                continue
 
             # Add this character and move to the next one
             cur_line_width += cur_char_width
@@ -173,7 +167,7 @@ class TableCreator:
         ############################################################################################################
         def is_last_word() -> bool:
             """Called from loop to check if we've parsed the last word of the text being wrapped"""
-            return data_line_index == len(data_str_lines) - 1 and char_index == len(data_line) - 1
+            return data_line_index >= len(data_str_lines) - 1 and char_index >= len(data_line) - 1
 
         def add_word(word_to_add: str):
             """
@@ -278,7 +272,6 @@ class TableCreator:
 
                 cur_char = data_line[char_index]
                 cur_char_width = ansi.style_aware_wcswidth(cur_char)
-                char_index += 1
 
                 if cur_char == SPACE:
                     # If we've reached the end of a word, then add the word to the wrapped text
@@ -299,6 +292,8 @@ class TableCreator:
                 else:
                     # Add this character to the word buffer
                     cur_word_buf.write(cur_char)
+
+                char_index += 1
 
             # Add the final word of this line if its been started
             if cur_word_buf.tell() > 0:
