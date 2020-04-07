@@ -125,10 +125,35 @@ def test_wrap_long_char_wider_than_max_width():
     is 1 and the text contains wide characters (e.g. East Asian). Replace it with an ellipsis.
     """
     column_1 = Column("Col 1", width=1)
-    columns = [column_1]
-    tc = TableCreator(columns)
+    tc = TableCreator([column_1])
     row = tc.generate_data_row(['深'])
     assert row == '…'
+
+
+def test_generate_row_exceptions():
+    column_1 = Column("Col 1")
+    tc = TableCreator([column_1])
+    data = ['fake']
+
+    # fill_char too long
+    with pytest.raises(TypeError) as excinfo:
+        tc.generate_data_row(data, fill_char='too long')
+    assert "Fill character must be exactly one character long" in str(excinfo.value)
+
+    # Unprintable characters
+    for arg in ['fill_char', 'pre_line', 'inter_cell', 'post_line']:
+        kwargs = {arg: '\n'}
+        with pytest.raises(ValueError) as excinfo:
+            tc.generate_data_row(data, **kwargs)
+        assert "{} contains an unprintable character".format(arg) in str(excinfo.value)
+
+    # data with too many columns
+    data = ['Data 1', 'Extra Column']
+    with pytest.raises(ValueError) as excinfo:
+        tc.generate_data_row(data)
+    assert "Length of cols must match length of data" in str(excinfo.value)
+
+
 #
 #
 #
