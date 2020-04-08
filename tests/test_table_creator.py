@@ -58,17 +58,17 @@ def test_column_alignment():
     assert column_4.data_vert_align == VerticalAlignment.TOP
 
     # Create a header row
-    header = tc.generate_header_row()
+    header = tc.generate_row()
     assert header == ('Col 1                               Three     \n'
                       '              Col 2                 line      \n'
-                      '                             Col 3  header    ')
+                      '                             Col 3  header    \n')
 
     # Create a data row
-    data = ["Val 1", "Val 2", "Val 3", "Three\nline\ndata"]
-    row = tc.generate_data_row(data)
+    row_data = ["Val 1", "Val 2", "Val 3", "Three\nline\ndata"]
+    row = tc.generate_row(row_data=row_data)
     assert row == ('Val 1                               Three     \n'
                    '              Val 2                 line      \n'
-                   '                             Val 3  data      ')
+                   '                             Val 3  data      \n')
 
 
 def test_wrap_text():
@@ -76,21 +76,21 @@ def test_wrap_text():
     tc = TableCreator([column_1])
 
     # Test normal wrapping
-    data = ['Some text to wrap\nA new line that will wrap\nNot wrap\n 1  2   3']
-    row = tc.generate_data_row(data)
+    row_data = ['Some text to wrap\nA new line that will wrap\nNot wrap\n 1  2   3']
+    row = tc.generate_row(row_data=row_data)
     assert row == ('Some text \n'
                    'to wrap   \n'
                    'A new line\n'
                    'that will \n'
                    'wrap      \n'
                    'Not wrap  \n'
-                   ' 1  2   3 ')
+                   ' 1  2   3 \n')
 
     # Test preserving a multiple space sequence across a line break
-    data = ['First      last one']
-    row = tc.generate_data_row(data)
+    row_data = ['First      last one']
+    row = tc.generate_row(row_data=row_data)
     assert row == ('First     \n'
-                   ' last one ')
+                   ' last one \n')
 
 
 def test_wrap_text_max_lines():
@@ -98,34 +98,34 @@ def test_wrap_text_max_lines():
     tc = TableCreator([column_1])
 
     # Test not needing to truncate the final line
-    data = ['First line last line']
-    row = tc.generate_data_row(data)
+    row_data = ['First line last line']
+    row = tc.generate_row(row_data=row_data)
     assert row == ('First line\n'
-                   'last line ')
+                   'last line \n')
 
     # Test having to truncate the last word because it's too long for the final line
-    data = ['First line last lineextratext']
-    row = tc.generate_data_row(data)
+    row_data = ['First line last lineextratext']
+    row = tc.generate_row(row_data=row_data)
     assert row == ('First line\n'
-                   'last line…')
+                   'last line…\n')
 
     # Test having to truncate the last word because it fits the final line but there is more text not being included
-    data = ['First line thistxtfit extra']
-    row = tc.generate_data_row(data)
+    row_data = ['First line thistxtfit extra']
+    row = tc.generate_row(row_data=row_data)
     assert row == ('First line\n'
-                   'thistxtfi…')
+                   'thistxtfi…\n')
 
     # Test having to truncate the last word because it fits the final line but there are more lines not being included
-    data = ['First line thistxtfit\nextra']
-    row = tc.generate_data_row(data)
+    row_data = ['First line thistxtfit\nextra']
+    row = tc.generate_row(row_data=row_data)
     assert row == ('First line\n'
-                   'thistxtfi…')
+                   'thistxtfi…\n')
 
     # Test having space left on the final line and adding an ellipsis because there are more lines not being included
-    data = ['First line last line\nextra line']
-    row = tc.generate_data_row(data)
+    row_data = ['First line last line\nextra line']
+    row = tc.generate_row(row_data=row_data)
     assert row == ('First line\n'
-                   'last line…')
+                   'last line…\n')
 
 
 def test_wrap_long_word():
@@ -137,23 +137,23 @@ def test_wrap_long_word():
     tc = TableCreator(columns)
 
     # Test header row
-    header = tc.generate_header_row()
+    header = tc.generate_row()
     assert header == ('LongColumn            \n'
-                      'Name        Col 2     ')
+                      'Name        Col 2     \n')
 
     # Test data row
-    data = list()
+    row_data = list()
 
     # Long word should start on the first line (style should not affect width)
-    data.append(ansi.style("LongerThan10", fg=ansi.fg.green))
+    row_data.append(ansi.style("LongerThan10", fg=ansi.fg.green))
 
     # Long word should start on the second line
-    data.append("Word LongerThan10")
+    row_data.append("Word LongerThan10")
 
-    row = tc.generate_data_row(data)
+    row = tc.generate_row(row_data=row_data)
     expected = (ansi.RESET_ALL + ansi.fg.green + "LongerThan" + ansi.RESET_ALL + "  Word      \n" +
                 ansi.RESET_ALL + ansi.fg.green + "10" + ansi.fg.reset + ansi.RESET_ALL + '        ' + ansi.RESET_ALL + '  LongerThan\n'
-                '            10        ')
+                '            10        \n')
     assert row == expected
 
 
@@ -166,24 +166,24 @@ def test_wrap_long_word_max_data_lines():
     columns = [column_1, column_2, column_3, column_4]
     tc = TableCreator(columns)
 
-    data = list()
+    row_data = list()
 
     # This long word will exactly fit the last line and it's the final word in the text. No ellipsis should appear.
-    data.append("LongerThan10FitsLast")
+    row_data.append("LongerThan10FitsLast")
 
     # This long word will exactly fit the last line but it's not the final word in the text.
     # Make sure ellipsis word's final character.
-    data.append("LongerThan10FitsLast\nMore lines")
+    row_data.append("LongerThan10FitsLast\nMore lines")
 
     # This long word will run over the last line. Make sure it is truncated.
-    data.append("LongerThan10RunsOverLast")
+    row_data.append("LongerThan10RunsOverLast")
 
     # This long word will start on the final line after another word. Therefore it won't wrap but will instead be truncated.
-    data.append("A LongerThan10RunsOverLast")
+    row_data.append("A LongerThan10RunsOverLast")
 
-    row = tc.generate_data_row(data)
+    row = tc.generate_row(row_data=row_data)
     assert row == ('LongerThan  LongerThan  LongerThan  A LongerT…\n'
-                   '10FitsLast  10FitsLas…  10RunsOve…            ')
+                   '10FitsLast  10FitsLas…  10RunsOve…            \n')
 
 
 def test_wrap_long_char_wider_than_max_width():
@@ -193,32 +193,32 @@ def test_wrap_long_char_wider_than_max_width():
     """
     column_1 = Column("Col 1", width=1)
     tc = TableCreator([column_1])
-    row = tc.generate_data_row(['深'])
-    assert row == '…'
+    row = tc.generate_row(row_data=['深'])
+    assert row == '…\n'
 
 
 def test_generate_row_exceptions():
     column_1 = Column("Col 1")
     tc = TableCreator([column_1])
-    data = ['fake']
+    row_data = ['fake']
 
     # fill_char too long
     with pytest.raises(TypeError) as excinfo:
-        tc.generate_data_row(data, fill_char='too long')
+        tc.generate_row(row_data=row_data, fill_char='too long')
     assert "Fill character must be exactly one character long" in str(excinfo.value)
 
     # Unprintable characters
     for arg in ['fill_char', 'pre_line', 'inter_cell', 'post_line']:
         kwargs = {arg: '\n'}
         with pytest.raises(ValueError) as excinfo:
-            tc.generate_data_row(data, **kwargs)
+            tc.generate_row(row_data=row_data, **kwargs)
         assert "{} contains an unprintable character".format(arg) in str(excinfo.value)
 
     # data with too many columns
-    data = ['Data 1', 'Extra Column']
+    row_data = ['Data 1', 'Extra Column']
     with pytest.raises(ValueError) as excinfo:
-        tc.generate_data_row(data)
-    assert "Length of cols must match length of data" in str(excinfo.value)
+        tc.generate_row(row_data=row_data)
+    assert "Length of row_data must match length of cols" in str(excinfo.value)
 
 
 def test_tabs():
@@ -226,6 +226,6 @@ def test_tabs():
     column_2 = Column("Col 2")
     tc = TableCreator([column_1, column_2], tab_width=2)
 
-    row = tc.generate_header_row(fill_char='\t', pre_line='\t',
-                                 inter_cell='\t', post_line='\t')
-    assert row == '  Col  1                Col 2  '
+    row = tc.generate_row(fill_char='\t', pre_line='\t',
+                          inter_cell='\t', post_line='\t')
+    assert row == '  Col  1                Col 2  \n'
