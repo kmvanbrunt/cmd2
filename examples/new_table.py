@@ -13,10 +13,10 @@ def ansi_print(text):
     ansi.style_aware_write(sys.stdout, text + '\n')
 
 
-style_1 = functools.partial(ansi.style, fg=ansi.fg.bright_yellow, bold=True)
-style_2 = functools.partial(ansi.style, fg=ansi.fg.bright_blue)
-style_3 = functools.partial(ansi.style, fg=ansi.fg.green)
-style_bg = functools.partial(ansi.style, bg=ansi.bg.bright_black)
+bold_yellow = functools.partial(ansi.style, fg=ansi.fg.bright_yellow, bold=True)
+blue = functools.partial(ansi.style, fg=ansi.fg.bright_blue)
+green = functools.partial(ansi.style, fg=ansi.fg.green)
+gray_bg = functools.partial(ansi.style, bg=ansi.bg.bright_black)
 
 # Table Columns
 columns: List[Column] = list()
@@ -35,13 +35,13 @@ data_rows.append(["William Longfellow Marmaduke III",
                   "984 Really Long Street Name Which Will Wrap Nicely\n"
                   "Apt 22G\n"
                   "Pensacola, FL 99888", "$55,135.22"])
-data_rows.append(["James " + style_2("  Anderson"),
-                  style_1("This address has line feeds,\n"
-                          "text style,") + style_2(" and changes color while wrapping."),
+data_rows.append(["James " + blue("Anderson"),
+                  bold_yellow("This address has line feeds,\n"
+                              "text style,") + blue(" and changes color while wrapping."),
                   "$300,876.10"])
 data_rows.append(["John Jones",
                   "9235 Highway 32\n" +
-                  style_3("Color") + ", VA 88222", "$82,987.71"])
+                  green("Color") + ", VA 88222", "$82,987.71"])
 
 
 def simple_table():
@@ -112,13 +112,13 @@ def alternating_table():
         post_line = " ║"
 
         if index % 2 != 0:
-            fill_char = style_bg(fill_char)
-            pre_line = style_bg(pre_line)
-            inter_cell = style_bg(inter_cell)
-            post_line = style_bg(post_line)
+            fill_char = gray_bg(fill_char)
+            pre_line = gray_bg(pre_line)
+            inter_cell = gray_bg(inter_cell)
+            post_line = gray_bg(post_line)
 
             for col_index, col in enumerate(data):
-                data[col_index] = style_bg(col)
+                data[col_index] = gray_bg(col)
 
         row = tc.generate_data_row(data, fill_char=fill_char, pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
         ansi_print(row)
