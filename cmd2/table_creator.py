@@ -367,8 +367,8 @@ class TableCreator:
             row_data = [col.header for col in self.cols]
             is_header = True
         else:
-            if len(self.cols) != len(row_data):
-                raise ValueError("Length of cols must match length of data")
+            if len(row_data) != len(self.cols):
+                raise ValueError("Length of row_data must match length of cols")
             is_header = False
 
         # Replace tabs (tabs in data strings will be handled in _generate_cell_lines())
@@ -453,14 +453,17 @@ class SimpleTable(TableCreator):
     Implementation of TableCreator which generates a borderless table with a divider row after the header.
     Can be used to create the whole table at once or one row at a time.
     """
-    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
+    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4, divider_char: str = '-') -> None:
         """
         SimpleTable initializer
         :param cols: column definitions for this table
         :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
                           then it will be converted to one space.
+        :param divider_char: character used to build the header divider row. Its value must meet the same requirements as
+                             fill_char in TableCreator.generate_row() or exceptions will be raised. (Defaults to dash)
         """
         super().__init__(cols, tab_width=tab_width)
+        self.divider_char = divider_char
 
     def generate_header(self) -> str:
         """
@@ -470,11 +473,14 @@ class SimpleTable(TableCreator):
         header_buf = io.StringIO()
 
         # Create the header labels
-        header_buf.write(self.generate_row())
+        inter_cell = SPACE * ansi.style_aware_wcswidth(2 * self.divider_char)
+        header = self.generate_row(inter_cell=inter_cell)
+        header_buf.write(header)
 
-        # Create the divider. Use empty strings for the data.
-        data = [EMPTY for _ in self.cols]
-        header_buf.write(super().generate_row(row_data=data, fill_char='-', inter_cell="--"))
+        # Create the divider. Use empty strings for the row_data.
+        row_data = [EMPTY for _ in self.cols]
+        header_buf.write(super().generate_row(row_data=row_data, fill_char=self.divider_char,
+                                              inter_cell=(2 * self.divider_char)))
         return header_buf.getvalue()
 
     def generate_data_row(self, row_data: Sequence[Any]) -> str:
@@ -483,16 +489,22 @@ class SimpleTable(TableCreator):
         :param row_data: Data with an entry for each column in the row.
         :return: data row string
         """
-        return self.generate_row(row_data=row_data)
+        inter_cell = SPACE * ansi.style_aware_wcswidth(2 * self.divider_char)
+        return self.generate_row(row_data=row_data, inter_cell=inter_cell)
 
-    def generate_table(self, table_data: Sequence[Sequence[Any]], *, include_header: bool = True) -> str:
+    def generate_table(self, table_data: Sequence[Sequence[Any]], *,
+                       include_header: bool = True, row_spacing: int = 1) -> str:
         """
         Generate a table from a data set
         :param table_data: Data with an entry for each data row of the table. Each entry should have data for
                            each column in the row.
         :param include_header: If True, then a header will be included at top of table. (Defaults to True)
+        :param row_spacing: A number 0 or greater specifying how many blank lines to place between each row (Defaults to 1)
+        :raises ValueError if row_spacing is less than 0
         """
-        """Blank lines separate each data row"""
+        if row_spacing < 0:
+            raise ValueError("Row spacing cannot be less than 0")
+
         table_buf = io.StringIO()
 
         if include_header:
@@ -500,8 +512,9 @@ class SimpleTable(TableCreator):
             table_buf.write(header)
 
         for index, row_data in enumerate(table_data):
-            if index > 0:
-                table_buf.write('\n')
+            if index > 0 and row_spacing > 0:
+                table_buf.write(row_spacing * '\n')
+
             data_row = self.generate_data_row(row_data)
             table_buf.write(data_row)
 

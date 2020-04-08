@@ -21,8 +21,8 @@ gray_bg = functools.partial(ansi.style, bg=ansi.bg.bright_black)
 # Table Columns
 columns: List[Column] = list()
 columns.append(Column("Name", width=20))
-columns.append(Column("Address", width=40))
-columns.append(Column("Income", width=13,
+columns.append(Column("Address", width=38))
+columns.append(Column("Income", width=14,
                       header_horiz_align=HorizontalAlignment.RIGHT,
                       data_horiz_align=HorizontalAlignment.RIGHT))
 
@@ -114,8 +114,7 @@ def main():
     ansi.allow_style = ansi.STYLE_TERMINAL
 
     st = SimpleTable(columns)
-    data_dict = str()
-    table = st.generate_table(data_dict)
+    table = st.generate_table(data_list)
     ansi_print(table)
 
     # ansi_print('')
