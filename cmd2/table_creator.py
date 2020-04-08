@@ -9,8 +9,8 @@ from wcwidth import wcwidth
 
 from . import ansi, constants, utils
 
-SPACE = ' '
 EMPTY = ''
+SPACE = ' '
 
 
 class HorizontalAlignment(Enum):

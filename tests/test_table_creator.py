@@ -219,3 +219,13 @@ def test_generate_row_exceptions():
     with pytest.raises(ValueError) as excinfo:
         tc.generate_data_row(data)
     assert "Length of cols must match length of data" in str(excinfo.value)
+
+
+def test_tabs():
+    column_1 = Column("Col\t1", width=20)
+    column_2 = Column("Col 2")
+    tc = TableCreator([column_1, column_2], tab_width=2)
+
+    row = tc.generate_header_row(fill_char='\t', pre_line='\t',
+                                 inter_cell='\t', post_line='\t')
+    assert row == '  Col  1                Col 2  '
