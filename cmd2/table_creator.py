@@ -529,7 +529,7 @@ class BorderedTable(TableCreator):
     """
     def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
         """
-        SimpleTable initializer
+        BorderedTable initializer
         :param cols: column definitions for this table
         :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
                           then it will be converted to one space.
@@ -605,19 +605,36 @@ class BorderedTable(TableCreator):
 
 class AlternatingTable(BorderedTable):
     """
-    Implementation of BorderedTable which generates a table with a border around the table and alternating background
-    colors to distinguish rows. Can be used to create the whole table at once or one row at a time.
+    Implementation of BorderedTable which generates a table with a border around the table and background colors
+    to distinguish between rows. Can be used to create the whole table at once or one row at a time.
     """
-    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
+    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4,
+                 bg_odd: Optional[ansi.bg] = None, bg_even: Optional[ansi.bg] = ansi.bg.bright_black) -> None:
         """
-        SimpleTable initializer
+        AlternatingTable initializer
         :param cols: column definitions for this table
         :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
                           then it will be converted to one space.
+        :param bg_odd: optional background color for odd numbered rows (defaults to None)
+        :param bg_even: optional background color for even numbered rows (defaults to gray)
         """
         super().__init__(cols, tab_width=tab_width)
-        self.row_index = 0
-        self.gray_bg = functools.partial(ansi.style, bg=ansi.bg.bright_black)
+        self.row_num = 1
+        self.bg_odd = None if bg_odd is None else functools.partial(ansi.style, bg=bg_odd)
+        self.bg_even = None if bg_even is None else functools.partial(ansi.style, bg=bg_even)
+
+    def apply_bg_color(self, data: Any) -> str:
+        """
+        Convert data to text and apply background color to it based on what row is being generated
+        :param data: data being colored
+        :return converted data
+        """
+        if self.row_num % 2 == 0 and self.bg_even is not None:
+            return self.bg_even(data)
+        elif self.row_num % 2 != 0 and self.bg_odd is not None:
+            return self.bg_odd(data)
+        else:
+            return str(data)
 
     def generate_data_row(self, row_data: Sequence[Any]) -> str:
         """
@@ -625,20 +642,14 @@ class AlternatingTable(BorderedTable):
         :param row_data: Data with an entry for each column in the row.
         :return: data row string
         """
-        fill_char = SPACE
-        pre_line = "║ "
-        inter_cell = " │ "
-        post_line = " ║"
-
-        if self.row_index % 2 != 0:
-            fill_char = self.gray_bg(fill_char)
-            pre_line = self.gray_bg(pre_line)
-            inter_cell = self.gray_bg(inter_cell)
-            post_line = self.gray_bg(post_line)
+        fill_char = self.apply_bg_color(SPACE)
+        pre_line = self.apply_bg_color("║ ")
+        inter_cell = self.apply_bg_color(" │ ")
+        post_line = self.apply_bg_color(" ║")
 
         row = self.generate_row(row_data=row_data, fill_char=fill_char, pre_line=pre_line,
                                 inter_cell=inter_cell, post_line=post_line)
-        self.row_index += 1
+        self.row_num += 1
         return row
 
     def generate_table(self, table_data: Sequence[Sequence[Any]], *, include_header: bool = True) -> str:
@@ -658,13 +669,10 @@ class AlternatingTable(BorderedTable):
             table_buf.write(top_border)
 
         for index, row_data in enumerate(table_data):
-            if self.row_index % 2 != 0:
-                # Set the background of this data to gray, but don't change the original
-                to_display = list()
-                for col_index, col in enumerate(row_data):
-                    to_display.append(self.gray_bg(col))
-            else:
-                to_display = row_data
+            # Apply appropriate background color, but don't change the original
+            to_display = list()
+            for col_index, col in enumerate(row_data):
+                to_display.append(self.apply_bg_color(col))
 
             row = self.generate_data_row(to_display)
             table_buf.write(row)
