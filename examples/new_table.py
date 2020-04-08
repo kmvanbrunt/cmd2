@@ -6,7 +6,7 @@ import sys
 from typing import List
 
 from cmd2 import ansi
-from cmd2.table_creator import Column, HorizontalAlignment, SimpleTable
+from cmd2.table_creator import Column, GridTable, HorizontalAlignment, SimpleTable
 
 
 def ansi_print(text):
@@ -115,6 +115,10 @@ def main():
 
     st = SimpleTable(columns)
     table = st.generate_table(data_list)
+    ansi_print(table)
+
+    gt = GridTable(columns)
+    table = gt.generate_table(data_list)
     ansi_print(table)
 
     # ansi_print('')

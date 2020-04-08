@@ -464,6 +464,7 @@ class SimpleTable(TableCreator):
         """
         super().__init__(cols, tab_width=tab_width)
         self.divider_char = divider_char
+        self.empty_data = [EMPTY for _ in self.cols]
 
     def generate_header(self) -> str:
         """
@@ -478,8 +479,7 @@ class SimpleTable(TableCreator):
         header_buf.write(header)
 
         # Create the divider. Use empty strings for the row_data.
-        row_data = [EMPTY for _ in self.cols]
-        header_buf.write(super().generate_row(row_data=row_data, fill_char=self.divider_char,
+        header_buf.write(super().generate_row(row_data=self.empty_data, fill_char=self.divider_char,
                                               inter_cell=(2 * self.divider_char)))
         return header_buf.getvalue()
 
@@ -515,7 +515,88 @@ class SimpleTable(TableCreator):
             if index > 0 and row_spacing > 0:
                 table_buf.write(row_spacing * '\n')
 
-            data_row = self.generate_data_row(row_data)
-            table_buf.write(data_row)
+            row = self.generate_data_row(row_data)
+            table_buf.write(row)
 
+        return table_buf.getvalue()
+
+
+class GridTable(TableCreator):
+    """
+    Implementation of TableCreator which generates a table with borders around and between rows.
+    Can be used to create the whole table at once or one row at a time.
+    """
+    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
+        """
+        SimpleTable initializer
+        :param cols: column definitions for this table
+        :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
+                          then it will be converted to one space.
+        """
+        super().__init__(cols, tab_width=tab_width)
+        self.empty_data = [EMPTY for _ in self.cols]
+
+    def generate_table_top_border(self):
+        """Generate a border which appears at the top of the header and data section"""
+        return self.generate_row(row_data=self.empty_data, fill_char='═', pre_line="╔═", inter_cell="═╤═", post_line="═╗")
+
+    def generate_header_bottom_border(self):
+        """Generate a border which appears at the bottom of the header"""
+        return self.generate_row(row_data=self.empty_data, fill_char='═', pre_line="╠═", inter_cell="═╪═", post_line="═╣")
+
+    def generate_row_bottom_border(self):
+        """Generate a border which appears at the bottom of rows"""
+        return self.generate_row(row_data=self.empty_data, fill_char="─", pre_line="╟─", inter_cell="─┼─", post_line="─╢")
+
+    def generate_table_bottom_border(self):
+        """Generate a border which appears at the bottom of the table"""
+        return self.generate_row(row_data=self.empty_data, fill_char='═', pre_line="╚═", inter_cell="═╧═", post_line="═╝")
+
+    def generate_header(self) -> str:
+        """
+        Generate header
+        :return: header string
+        """
+        header_buf = io.StringIO()
+
+        # Create the bordered header
+        header_buf.write(self.generate_table_top_border())
+        header_buf.write(self.generate_row(pre_line="║ ", inter_cell=" │ ", post_line=" ║"))
+        header_buf.write(self.generate_header_bottom_border())
+
+        return header_buf.getvalue()
+
+    def generate_data_row(self, row_data: Sequence[Any]) -> str:
+        """
+        Generate a data row
+        :param row_data: Data with an entry for each column in the row.
+        :return: data row string
+        """
+        return self.generate_row(row_data=row_data, pre_line="║ ", inter_cell=" │ ", post_line=" ║")
+
+    def generate_table(self, table_data: Sequence[Sequence[Any]], *, include_header: bool = True) -> str:
+        """
+        Generate a table from a data set
+        :param table_data: Data with an entry for each data row of the table. Each entry should have data for
+                           each column in the row.
+        :param include_header: If True, then a header will be included at top of table. (Defaults to True)
+        """
+        table_buf = io.StringIO()
+
+        if include_header:
+            header = self.generate_header()
+            table_buf.write(header)
+        else:
+            top_border = self.generate_table_top_border()
+            table_buf.write(top_border)
+
+        for index, row_data in enumerate(table_data):
+            if index > 0:
+                row_bottom_border = self.generate_row_bottom_border()
+                table_buf.write(row_bottom_border)
+
+            row = self.generate_data_row(row_data)
+            table_buf.write(row)
+
+        table_buf.write(self.generate_table_bottom_border())
         return table_buf.getvalue()
