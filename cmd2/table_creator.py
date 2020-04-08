@@ -163,9 +163,6 @@ class TableCreator:
         :param max_lines: maximum lines to wrap before ending the last line displayed with an ellipsis
         :return: wrapped text
         """
-        ############################################################################################################
-        # _wrap_text() inner functions
-        ############################################################################################################
         def add_word(word_to_add: str, is_last_word: bool):
             """
             Called from loop to add a word to the wrapped text
@@ -449,6 +446,10 @@ class TableCreator:
         return row_buf.getvalue()
 
 
+############################################################################################################
+# The following are implementations of TableCreator which demonstrate how to make various
+# types of tables. They can be used as-is or serve as inspiration for other table classes.
+############################################################################################################
 class SimpleTable(TableCreator):
     """
     Implementation of TableCreator which generates a borderless table with a divider row after the header.
