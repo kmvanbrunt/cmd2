@@ -525,7 +525,7 @@ class SimpleTable(TableCreator):
 
 class BorderedTable(TableCreator):
     """
-    Implementation of TableCreator which generates a table with borders around and between rows.
+    Implementation of TableCreator which generates a table with borders around the table and between rows and columns.
     Can be used to create the whole table at once or one row at a time.
     """
     def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
@@ -606,8 +606,9 @@ class BorderedTable(TableCreator):
 
 class AlternatingTable(BorderedTable):
     """
-    Implementation of BorderedTable which generates a table with a border around the table and background colors
-    to distinguish between rows. Can be used to create the whole table at once or one row at a time.
+    Implementation of BorderedTable which generates a table with borders around the table and between columns.
+    Background colors are used to distinguish between rows. Can be used to create the whole table at once or
+    one row at a time.
     """
     def __init__(self, cols: Sequence[Column], *, tab_width: int = 4,
                  bg_odd: Optional[ansi.bg] = None, bg_even: Optional[ansi.bg] = ansi.bg.bright_black) -> None:
