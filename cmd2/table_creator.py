@@ -521,7 +521,7 @@ class SimpleTable(TableCreator):
         return table_buf.getvalue()
 
 
-class GridTable(TableCreator):
+class BorderedTable(TableCreator):
     """
     Implementation of TableCreator which generates a table with borders around and between rows.
     Can be used to create the whole table at once or one row at a time.

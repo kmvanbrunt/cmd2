@@ -6,7 +6,7 @@ import sys
 from typing import List
 
 from cmd2 import ansi
-from cmd2.table_creator import Column, GridTable, HorizontalAlignment, SimpleTable
+from cmd2.table_creator import BorderedTable, Column, HorizontalAlignment, SimpleTable
 
 
 def ansi_print(text):
@@ -43,35 +43,6 @@ data_list.append(["John Jones",
                   "9235 Highway 32\n" +
                   green("Color") + ", VA 88222", "$82,987.71"])
 
-
-#
-# def bordered_table():
-#     """Create a table with borders around and between rows"""
-#     # Made the headers bold
-#     for col in columns:
-#         col.header = ansi.style(col.header, bold=True)
-#     tc = TableCreator(columns)
-#
-#     # Create the bordered header
-#     header_top = tc.generate_data_row(['', '', ''], fill_char='═', pre_line="╔═", inter_cell="═╤═", post_line="═╗")
-#     header = tc.generate_header_row(pre_line="║ ", inter_cell=" │ ", post_line=" ║")
-#     header_bottom = tc.generate_data_row(['', '', ''], fill_char='═', pre_line="╠═", inter_cell="═╪═", post_line="═╣")
-#     ansi_print(header_top)
-#     ansi_print(header)
-#     ansi_print(header_bottom)
-#
-#     # Add each row
-#     for index, data in enumerate(data_list):
-#         if index > 0:
-#             border = tc.generate_data_row(['', '', ''], fill_char="─", pre_line="╟─", inter_cell="─┼─", post_line="─╢")
-#             ansi_print(border)
-#         row = tc.generate_data_row(data, pre_line="║ ", inter_cell=" │ ", post_line=" ║")
-#         ansi_print(row)
-#
-#     table_bottom = tc.generate_data_row(['', '', ''], fill_char='═', pre_line="╚═", inter_cell="═╧═", post_line="═╝")
-#     ansi_print(table_bottom)
-#
-#
 # def alternating_table():
 #     """Create a table with borders around the table and alternating background color used to separate rows"""
 #     # Made the headers bold
@@ -117,8 +88,8 @@ def main():
     table = st.generate_table(data_list)
     ansi_print(table)
 
-    gt = GridTable(columns)
-    table = gt.generate_table(data_list)
+    bt = BorderedTable(columns)
+    table = bt.generate_table(data_list)
     ansi_print(table)
 
     # ansi_print('')
