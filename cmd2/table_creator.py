@@ -3,12 +3,13 @@
 import io
 from collections import deque
 from enum import Enum
-from typing import Any, Deque, List, Optional, Tuple, Union
+from typing import Any, Deque, Optional, Sequence, Tuple, Union
 
 from wcwidth import wcwidth
 
 from . import ansi, constants, utils
 
+# Constants
 EMPTY = ''
 SPACE = ' '
 
@@ -72,16 +73,15 @@ class Column:
 
 class TableCreator:
     """
-    Create a table one row at a time. This avoids needing to have the whole data set in memory before
-    creating the table. This class handles ANSI style sequences and characters with display widths greater than 1
+    Base table creation class. This class handles ANSI style sequences and characters with display widths greater than 1
     when performing width calculations.
     """
-    def __init__(self, cols: List[Column], *, tab_width: int = 4) -> None:
+    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
         """
         TableCreator initializer
         :param cols: column definitions for this table
-        :param tab_width: all tabs will be replaced with this many spaces. if a row's fill_char is a tab, then it will
-                          be converted to one space.
+        :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
+                          then it will be converted to one space.
         """
         self.cols = cols
         self.tab_width = tab_width
@@ -305,10 +305,10 @@ class TableCreator:
 
         return wrapped_buf.getvalue()
 
-    def _generate_cell_lines(self, data: Any, is_header: bool, col: Column, fill_char: str) -> Tuple[Deque[str], int]:
+    def _generate_cell_lines(self, cell_data: Any, is_header: bool, col: Column, fill_char: str) -> Tuple[Deque[str], int]:
         """
         Generate the lines of a table cell
-        :param data: data to be included in cell
+        :param cell_data: data to be included in cell
         :param is_header: True if writing a header cell, otherwise writing a data cell
         :param col: Column definition for this cell
         :param fill_char: character that fills remaining space in a cell. If your text has a background color,
@@ -316,7 +316,7 @@ class TableCreator:
         :return: Tuple of cell lines deque and the display width of the cell
         """
         # Convert data to string and replace tabs with spaces
-        data_str = str(data).replace('\t', SPACE * self.tab_width)
+        data_str = str(cell_data).replace('\t', SPACE * self.tab_width)
 
         # Wrap text in this cell
         max_lines = constants.INFINITY if is_header else col.max_data_lines
@@ -337,17 +337,17 @@ class TableCreator:
         cell_width = max([ansi.style_aware_wcswidth(line) for line in lines])
         return lines, cell_width
 
-    def _generate_row(self, data: List[Any], is_header: bool, fill_char: str,
-                      pre_line: str, inter_cell: str, post_line: str) -> str:
+    def generate_row(self, *, row_data: Optional[Sequence[Any]] = None, fill_char: str = SPACE,
+                     pre_line: str = EMPTY, inter_cell: str = (2 * SPACE), post_line: str = EMPTY) -> str:
         """
-        Generate a table row
-        :param data: list of data the same length as cols
-        :param is_header: True if writing a header row, otherwise writing a data row
-        :param fill_char: character that fills remaining space in a cell. If your text has a background color,
-                          then give fill_char the same background color. (Cannot be a line breaking character)
-        :param pre_line: string to print after a row line
-        :param inter_cell: string to print between cell lines
-        :param post_line: string to print after a row line
+        Generate a header or data table row.
+        :param row_data: If this is None then a header row is generated. Otherwise data should have an entry for each
+                         column in the row. (Defaults to None)
+        :param fill_char: character that fills remaining space in a cell. Defaults to space. If this is a tab, then it will
+                          be converted to one space. (Cannot be a line breaking character)
+        :param pre_line: string to print after a row line (Defaults to blank)
+        :param inter_cell: string to print between cell lines (Defaults to 2 spaces)
+        :param post_line: string to print after a row line (Defaults to blank)
         :return: row string
         :raises ValueError if data isn't the same length as self.cols
                 TypeError if fill_char is more than one character (not including ANSI style sequences)
@@ -363,8 +363,13 @@ class TableCreator:
                 # Display width of this cell
                 self.width = 0
 
-        if len(self.cols) != len(data):
-            raise ValueError("Length of cols must match length of data")
+        if row_data is None:
+            row_data = [col.header for col in self.cols]
+            is_header = True
+        else:
+            if len(self.cols) != len(row_data):
+                raise ValueError("Length of cols must match length of data")
+            is_header = False
 
         # Replace tabs (tabs in data strings will be handled in _generate_cell_lines())
         fill_char = fill_char.replace('\t', SPACE)
@@ -391,7 +396,7 @@ class TableCreator:
 
         for col_index, col in enumerate(self.cols):
             cell = Cell()
-            cell.lines, cell.width = self._generate_cell_lines(data[col_index], is_header, col, fill_char)
+            cell.lines, cell.width = self._generate_cell_lines(row_data[col_index], is_header, col, fill_char)
             cells.append(cell)
             total_lines = max(len(cell.lines), total_lines)
 
@@ -438,44 +443,66 @@ class TableCreator:
                     row_buf.write(post_line)
 
             # Add a newline if this is not the last row
-            if line_index < total_lines - 1:
-                row_buf.write('\n')
+            row_buf.write('\n')
 
         return row_buf.getvalue()
 
-    def generate_header_row(self, *, fill_char: str = SPACE, pre_line: str = EMPTY,
-                            inter_cell: str = (2 * SPACE), post_line: str = EMPTY) -> str:
-        """
-        Generate a header row
-        :param fill_char: character that fills remaining space in a cell. Defaults to space.
-                          (Cannot be a line breaking character)
-        :param pre_line: string to print after a row line (Defaults to blank)
-        :param inter_cell: string to print between cell lines (Defaults to 2 spaces)
-        :param post_line: string to print after a row line (Defaults to blank)
-        :return: header row string
-        :raises TypeError if fill_char is more than one character (not including ANSI style sequences)
-                ValueError if fill_char, pre_line, inter_cell, or post_line contains an unprintable
-                character like a newline
-        """
-        data = [col.header for col in self.cols]
-        return self._generate_row(data, is_header=True, fill_char=fill_char,
-                                  pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
 
-    def generate_data_row(self, data: List[Any], *, fill_char: str = SPACE,
-                          pre_line: str = EMPTY, inter_cell: str = (2 * SPACE), post_line: str = EMPTY) -> str:
+class SimpleTable(TableCreator):
+    """
+    Implementation of TableCreator which generates a borderless table with a divider row after the header.
+    Can be used to create the whole table at once or one row at a time.
+    """
+    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
+        """
+        SimpleTable initializer
+        :param cols: column definitions for this table
+        :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
+                          then it will be converted to one space.
+        """
+        super().__init__(cols, tab_width=tab_width)
+
+    def generate_header(self) -> str:
+        """
+        Generate header with a divider row
+        :return: header string
+        """
+        header_buf = io.StringIO()
+
+        # Create the header labels
+        header_buf.write(self.generate_row())
+
+        # Create the divider. Use empty strings for the data.
+        data = [EMPTY for _ in self.cols]
+        header_buf.write(super().generate_row(row_data=data, fill_char='-', inter_cell="--"))
+        return header_buf.getvalue()
+
+    def generate_data_row(self, row_data: Sequence[Any]) -> str:
         """
         Generate a data row
-        :param data: list of data the same length as cols
-        :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
-                          color, then give fill_char the same background color. (Cannot be a line breaking character)
-        :param pre_line: string to print after a row line (Defaults to blank)
-        :param inter_cell: string to print between cell lines (Defaults to 2 spaces)
-        :param post_line: string to print after a row line (Defaults to blank)
+        :param row_data: Data with an entry for each column in the row.
         :return: data row string
-        :raises ValueError if data isn't the same length as self.cols
-                TypeError if fill_char is more than one character (not including ANSI style sequences)
-                ValueError if fill_char, pre_line, inter_cell, or post_line contains an unprintable
-                character like a newline
         """
-        return self._generate_row(data, is_header=False, fill_char=fill_char,
-                                  pre_line=pre_line, inter_cell=inter_cell, post_line=post_line)
+        return self.generate_row(row_data=row_data)
+
+    def generate_table(self, table_data: Sequence[Sequence[Any]], *, include_header: bool = True) -> str:
+        """
+        Generate a table from a data set
+        :param table_data: Data with an entry for each data row of the table. Each entry should have data for
+                           each column in the row.
+        :param include_header: If True, then a header will be included at top of table. (Defaults to True)
+        """
+        """Blank lines separate each data row"""
+        table_buf = io.StringIO()
+
+        if include_header:
+            header = self.generate_header()
+            table_buf.write(header)
+
+        for index, row_data in enumerate(table_data):
+            if index > 0:
+                table_buf.write('\n')
+            data_row = self.generate_data_row(row_data)
+            table_buf.write(data_row)
+
+        return table_buf.getvalue()
