@@ -1,5 +1,6 @@
 # coding=utf-8
 """Table creation API"""
+import functools
 import io
 from collections import deque
 from enum import Enum
@@ -596,6 +597,76 @@ class BorderedTable(TableCreator):
                 table_buf.write(row_bottom_border)
 
             row = self.generate_data_row(row_data)
+            table_buf.write(row)
+
+        table_buf.write(self.generate_table_bottom_border())
+        return table_buf.getvalue()
+
+
+class AlternatingTable(BorderedTable):
+    """
+    Implementation of BorderedTable which generates a table with a border around the table and alternating background
+    colors to distinguish rows. Can be used to create the whole table at once or one row at a time.
+    """
+    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
+        """
+        SimpleTable initializer
+        :param cols: column definitions for this table
+        :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
+                          then it will be converted to one space.
+        """
+        super().__init__(cols, tab_width=tab_width)
+        self.row_index = 0
+        self.gray_bg = functools.partial(ansi.style, bg=ansi.bg.bright_black)
+
+    def generate_data_row(self, row_data: Sequence[Any]) -> str:
+        """
+        Generate a data row
+        :param row_data: Data with an entry for each column in the row.
+        :return: data row string
+        """
+        fill_char = SPACE
+        pre_line = "║ "
+        inter_cell = " │ "
+        post_line = " ║"
+
+        if self.row_index % 2 != 0:
+            fill_char = self.gray_bg(fill_char)
+            pre_line = self.gray_bg(pre_line)
+            inter_cell = self.gray_bg(inter_cell)
+            post_line = self.gray_bg(post_line)
+
+        row = self.generate_row(row_data=row_data, fill_char=fill_char, pre_line=pre_line,
+                                inter_cell=inter_cell, post_line=post_line)
+        self.row_index += 1
+        return row
+
+    def generate_table(self, table_data: Sequence[Sequence[Any]], *, include_header: bool = True) -> str:
+        """
+        Generate a table from a data set
+        :param table_data: Data with an entry for each data row of the table. Each entry should have data for
+                           each column in the row.
+        :param include_header: If True, then a header will be included at top of table. (Defaults to True)
+        """
+        table_buf = io.StringIO()
+
+        if include_header:
+            header = self.generate_header()
+            table_buf.write(header)
+        else:
+            top_border = self.generate_table_top_border()
+            table_buf.write(top_border)
+
+        for index, row_data in enumerate(table_data):
+            if self.row_index % 2 != 0:
+                # Set the background of this data to gray, but don't change the original
+                to_display = list()
+                for col_index, col in enumerate(row_data):
+                    to_display.append(self.gray_bg(col))
+            else:
+                to_display = row_data
+
+            row = self.generate_data_row(to_display)
             table_buf.write(row)
 
         table_buf.write(self.generate_table_bottom_border())
