@@ -72,8 +72,8 @@ class Column:
 
 class TableCreator:
     """
-    Creates a table one row at a time. This avoids needing to have the whole table in memory.
-    It also handles ANSI style sequences and characters with display widths greater than 1
+    Create a table one row at a time. This avoids needing to have the whole data set in memory before
+    creating the table. This class handles ANSI style sequences and characters with display widths greater than 1
     when performing width calculations.
     """
     def __init__(self, cols: List[Column], *, tab_width: int = 4) -> None:
@@ -89,7 +89,7 @@ class TableCreator:
     @staticmethod
     def _wrap_long_word(word: str, max_width: int, max_lines: Union[int, float], is_last_word: bool) -> Tuple[str, int, int]:
         """
-        Used by _wrap_text to wrap a long word over multiple lines
+        Used by _wrap_text() to wrap a long word over multiple lines
 
         :param word: word being wrapped
         :param max_width: maximum display width of a line
@@ -340,9 +340,9 @@ class TableCreator:
     def _generate_row(self, data: List[Any], is_header: bool, fill_char: str,
                       pre_line: str, inter_cell: str, post_line: str) -> str:
         """
-        Generate a table data row
+        Generate a table row
         :param data: list of data the same length as cols
-        :param is_header: True if writing a header cell, otherwise writing a data cell
+        :param is_header: True if writing a header row, otherwise writing a data row
         :param fill_char: character that fills remaining space in a cell. If your text has a background color,
                           then give fill_char the same background color. (Cannot be a line breaking character)
         :param pre_line: string to print after a row line
@@ -446,7 +446,7 @@ class TableCreator:
     def generate_header_row(self, *, fill_char: str = SPACE, pre_line: str = EMPTY,
                             inter_cell: str = (2 * SPACE), post_line: str = EMPTY) -> str:
         """
-        Generate the header row
+        Generate a header row
         :param fill_char: character that fills remaining space in a cell. Defaults to space.
                           (Cannot be a line breaking character)
         :param pre_line: string to print after a row line (Defaults to blank)
@@ -464,7 +464,7 @@ class TableCreator:
     def generate_data_row(self, data: List[Any], *, fill_char: str = SPACE,
                           pre_line: str = EMPTY, inter_cell: str = (2 * SPACE), post_line: str = EMPTY) -> str:
         """
-        Generate a table data row
+        Generate a data row
         :param data: list of data the same length as cols
         :param fill_char: character that fills remaining space in a cell. Defaults to space. If your text has a background
                           color, then give fill_char the same background color. (Cannot be a line breaking character)
