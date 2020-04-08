@@ -24,7 +24,7 @@ columns.append(Column("Name", width=20))
 columns.append(Column("Address", width=40))
 columns.append(Column("Income", width=13,
                       header_horiz_align=HorizontalAlignment.RIGHT,
-                      data_horiz_align=HorizontalAlignment.RIGHT,))
+                      data_horiz_align=HorizontalAlignment.RIGHT))
 
 # Table data
 data_rows: List[List[str]] = list()
