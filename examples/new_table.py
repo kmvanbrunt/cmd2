@@ -40,8 +40,8 @@ data_list.append(["James " + blue("Anderson"),
                               "text style,") + blue(" and changes color while wrapping."),
                   "$300,876.10"])
 data_list.append(["John Jones",
-                  "9235 Highway 32\n" +
-                  green("Color") + ", VA 88222", "$82,987.71"])
+                  "9235 Highway 32\n"
+                  + green("Color") + ", VA 88222", "$82,987.71"])
 
 
 def main():

@@ -151,8 +151,9 @@ def test_wrap_long_word():
     row_data.append("Word LongerThan10")
 
     row = tc.generate_row(row_data=row_data)
-    expected = (ansi.RESET_ALL + ansi.fg.green + "LongerThan" + ansi.RESET_ALL + "  Word      \n" +
-                ansi.RESET_ALL + ansi.fg.green + "10" + ansi.fg.reset + ansi.RESET_ALL + '        ' + ansi.RESET_ALL + '  LongerThan\n'
+    expected = (ansi.RESET_ALL + ansi.fg.green + "LongerThan" + ansi.RESET_ALL + "  Word      \n"
+                + ansi.RESET_ALL + ansi.fg.green + "10" + ansi.fg.reset + ansi.RESET_ALL + '        ' + ansi.RESET_ALL
+                + '  LongerThan\n'
                 '            10        \n')
     assert row == expected
 
