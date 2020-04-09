@@ -676,7 +676,7 @@ class AlternatingTable(BorderedTable):
         self.bg_odd = None if bg_odd is None else functools.partial(ansi.style, bg=bg_odd)
         self.bg_even = None if bg_even is None else functools.partial(ansi.style, bg=bg_even)
 
-    def apply_bg_color(self, data: Any) -> str:
+    def _apply_bg_color(self, data: Any) -> str:
         """
         Convert data to text and apply background color to it based on what row is being generated
         :param data: data being colored
@@ -700,10 +700,10 @@ class AlternatingTable(BorderedTable):
         else:
             inter_cell = 2 * SPACE
 
-        fill_char = self.apply_bg_color(SPACE)
-        pre_line = self.apply_bg_color("║ ")
-        inter_cell = self.apply_bg_color(inter_cell)
-        post_line = self.apply_bg_color(" ║")
+        fill_char = self._apply_bg_color(SPACE)
+        pre_line = self._apply_bg_color("║ ")
+        inter_cell = self._apply_bg_color(inter_cell)
+        post_line = self._apply_bg_color(" ║")
 
         row = self.generate_row(row_data=row_data, fill_char=fill_char, pre_line=pre_line,
                                 inter_cell=inter_cell, post_line=post_line)
@@ -730,7 +730,7 @@ class AlternatingTable(BorderedTable):
             # Apply appropriate background color, but don't change the original
             to_display = list()
             for col_index, col in enumerate(row_data):
-                to_display.append(self.apply_bg_color(col))
+                to_display.append(self._apply_bg_color(col))
 
             row = self.generate_data_row(to_display)
             table_buf.write(row)
