@@ -19,11 +19,7 @@ class DollarFormatter:
         return "${:,.2f}".format(self.val)
 
 
-def ansi_print(text):
-    ansi.style_aware_write(sys.stdout, text + '\n')
-
-
-# Text styles used in our data
+# Text styles used in the data
 bold_yellow = functools.partial(ansi.style, fg=ansi.fg.bright_yellow, bold=True)
 blue = functools.partial(ansi.style, fg=ansi.fg.bright_blue)
 green = functools.partial(ansi.style, fg=ansi.fg.green)
@@ -36,7 +32,7 @@ columns.append(Column("Income", width=14,
                       header_horiz_align=HorizontalAlignment.RIGHT,
                       data_horiz_align=HorizontalAlignment.RIGHT))
 
-# Table data
+# Table data which demonstrates handling of wrapping and text styles
 data_list: List[List[Any]] = list()
 data_list.append(["Billy Smith",
                   "123 Sesame St.\n"
@@ -44,15 +40,20 @@ data_list.append(["Billy Smith",
 data_list.append(["William Longfellow Marmaduke III",
                   "984 Really Long Street Name Which Will Wrap Nicely\n"
                   "Apt 22G\n"
-                  "Pensacola, FL 99888", DollarFormatter(55135.22)])
+                  "Pensacola, FL 32501", DollarFormatter(55135.22)])
 data_list.append(["James " + blue("Bluestone"),
                   bold_yellow("This address has line feeds,\n"
-                              "text style,") + blue(" and changes color while wrapping."),
+                              "text styles, and wrapping. ") + blue("Style is preserved across lines."),
                   DollarFormatter(300876.10)])
 data_list.append(["John Jones",
                   "9235 Highway 32\n"
-                  + green("Color") + ", VA 88222",
+                  + green("Greenville") + ", SC 29604",
                   DollarFormatter(82987.71)])
+
+
+def ansi_print(text):
+    """Wraps style_aware_write so style can be stripped if needed"""
+    ansi.style_aware_write(sys.stdout, text + '\n')
 
 
 def main():
