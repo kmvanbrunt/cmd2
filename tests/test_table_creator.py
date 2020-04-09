@@ -1,11 +1,13 @@
 # coding=utf-8
+# flake8: noqa E501
 """
 Unit testing for cmd2/table_creator.py module
 """
 import pytest
 
 from cmd2 import ansi
-from cmd2.table_creator import BorderedTable, Column, HorizontalAlignment, SimpleTable, TableCreator, VerticalAlignment
+from cmd2.table_creator import (AlternatingTable, BorderedTable, Column, HorizontalAlignment,
+                                SimpleTable, TableCreator, VerticalAlignment)
 
 
 def test_column_creation():
@@ -152,8 +154,7 @@ def test_wrap_long_word():
 
     row = tc.generate_row(row_data=row_data)
     expected = (ansi.RESET_ALL + ansi.fg.green + "LongerThan" + ansi.RESET_ALL + "  Word      \n"
-                + ansi.RESET_ALL + ansi.fg.green + "10" + ansi.fg.reset + ansi.RESET_ALL + '        ' + ansi.RESET_ALL
-                + '  LongerThan\n'
+                + ansi.RESET_ALL + ansi.fg.green + "10" + ansi.fg.reset + ansi.RESET_ALL + '        ' + ansi.RESET_ALL + '  LongerThan\n'
                 '            10        \n')
     assert row == expected
 
@@ -329,4 +330,51 @@ def test_bordered_table():
                      '║ Col 1 Row 1     │ Col 2 Row 1     ║\n'
                      '╟─────────────────┼─────────────────╢\n'
                      '║ Col 1 Row 2     │ Col 2 Row 2     ║\n'
+                     '╚═════════════════╧═════════════════╝\n')
+
+
+def test_alternating_table():
+    column_1 = Column("Col 1", width=15)
+    column_2 = Column("Col 2", width=15)
+
+    row_data = list()
+    row_data.append(["Col 1 Row 1", "Col 2 Row 1"])
+    row_data.append(["Col 1 Row 2", "Col 2 Row 2"])
+
+    # Default options
+    at = AlternatingTable([column_1, column_2])
+    table = at.generate_table(row_data)
+    assert table == ('╔═════════════════╤═════════════════╗\n'
+                     '║ Col 1           │ Col 2           ║\n'
+                     '╠═════════════════╪═════════════════╣\n'
+                     '║ Col 1 Row 1     │ Col 2 Row 1     ║\n'
+                     '\x1b[100m║ \x1b[49m\x1b[0m\x1b[100mCol 1 Row 2\x1b[49m\x1b[0m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[0m\x1b[100m │ \x1b[49m\x1b[0m\x1b[100mCol 2 Row 2\x1b[49m\x1b[0m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[0m\x1b[100m ║\x1b[49m\n'
+                     '╚═════════════════╧═════════════════╝\n')
+
+    # Other bg colors
+    at = AlternatingTable([column_1, column_2], bg_odd=ansi.bg.bright_blue, bg_even=ansi.bg.green)
+    table = at.generate_table(row_data)
+    assert table == ('╔═════════════════╤═════════════════╗\n'
+                     '║ Col 1           │ Col 2           ║\n'
+                     '╠═════════════════╪═════════════════╣\n'
+                     '\x1b[104m║ \x1b[49m\x1b[0m\x1b[104mCol 1 Row 1\x1b[49m\x1b[0m\x1b[104m \x1b[49m\x1b[104m \x1b[49m\x1b[104m \x1b[49m\x1b[104m \x1b[49m\x1b[0m\x1b[104m │ \x1b[49m\x1b[0m\x1b[104mCol 2 Row 1\x1b[49m\x1b[0m\x1b[104m \x1b[49m\x1b[104m \x1b[49m\x1b[104m \x1b[49m\x1b[104m \x1b[49m\x1b[0m\x1b[104m ║\x1b[49m\n'
+                     '\x1b[42m║ \x1b[49m\x1b[0m\x1b[42mCol 1 Row 2\x1b[49m\x1b[0m\x1b[42m \x1b[49m\x1b[42m \x1b[49m\x1b[42m \x1b[49m\x1b[42m \x1b[49m\x1b[0m\x1b[42m │ \x1b[49m\x1b[0m\x1b[42mCol 2 Row 2\x1b[49m\x1b[0m\x1b[42m \x1b[49m\x1b[42m \x1b[49m\x1b[42m \x1b[49m\x1b[42m \x1b[49m\x1b[0m\x1b[42m ║\x1b[49m\n'
+                     '╚═════════════════╧═════════════════╝\n')
+
+    # No column borders
+    at = AlternatingTable([column_1, column_2], column_borders=False)
+    table = at.generate_table(row_data)
+    assert table == ('╔══════════════════════════════════╗\n'
+                     '║ Col 1            Col 2           ║\n'
+                     '╠══════════════════════════════════╣\n'
+                     '║ Col 1 Row 1      Col 2 Row 1     ║\n'
+                     '\x1b[100m║ \x1b[49m\x1b[0m\x1b[100mCol 1 Row 2\x1b[49m\x1b[0m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[0m\x1b[100m  \x1b[49m\x1b[0m\x1b[100mCol 2 Row 2\x1b[49m\x1b[0m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[0m\x1b[100m ║\x1b[49m\n'
+                     '╚══════════════════════════════════╝\n')
+
+    # No header
+    at = AlternatingTable([column_1, column_2])
+    table = at.generate_table(row_data, include_header=False)
+    assert table == ('╔═════════════════╤═════════════════╗\n'
+                     '║ Col 1 Row 1     │ Col 2 Row 1     ║\n'
+                     '\x1b[100m║ \x1b[49m\x1b[0m\x1b[100mCol 1 Row 2\x1b[49m\x1b[0m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[0m\x1b[100m │ \x1b[49m\x1b[0m\x1b[100mCol 2 Row 2\x1b[49m\x1b[0m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[100m \x1b[49m\x1b[0m\x1b[100m ║\x1b[49m\n'
                      '╚═════════════════╧═════════════════╝\n')
