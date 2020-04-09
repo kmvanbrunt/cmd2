@@ -260,6 +260,15 @@ def test_simple_table():
                      '\n'
                      'Col 1 Row 2      Col 2 Row 2    \n')
 
+    # No divider
+    st = SimpleTable([column_1, column_2], divider_char=None)
+    table = st.generate_table(row_data)
+
+    assert table == ('Col 1            Col 2          \n'
+                     'Col 1 Row 1      Col 2 Row 1    \n'
+                     '\n'
+                     'Col 1 Row 2      Col 2 Row 2    \n')
+
     # No row spacing
     st = SimpleTable([column_1, column_2])
     table = st.generate_table(row_data, row_spacing=0)

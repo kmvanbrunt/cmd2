@@ -467,17 +467,18 @@ class TableCreator:
 ############################################################################################################
 class SimpleTable(TableCreator):
     """
-    Implementation of TableCreator which generates a borderless table with a divider row after the header.
+    Implementation of TableCreator which generates a borderless table with an optional divider row after the header.
     This class can be used to create the whole table at once or one row at a time.
     """
-    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4, divider_char: str = '-') -> None:
+    def __init__(self, cols: Sequence[Column], *, tab_width: int = 4, divider_char: Optional[str] = '-') -> None:
         """
         SimpleTable initializer
         :param cols: column definitions for this table
         :param tab_width: all tabs will be replaced with this many spaces. If a row's fill_char is a tab,
                           then it will be converted to one space.
-        :param divider_char: character used to build the header divider row. Its value must meet the same requirements as
-                             fill_char in TableCreator.generate_row() or exceptions will be raised. (Defaults to dash)
+        :param divider_char: optional character used to build the header divider row. If provided, its value must meet the
+                             same requirements as fill_char in TableCreator.generate_row() or exceptions will be raised.
+                             Set this to None if you don't want a divider row. (Defaults to dash)
         """
         super().__init__(cols, tab_width=tab_width)
         self.divider_char = divider_char
@@ -491,13 +492,18 @@ class SimpleTable(TableCreator):
         header_buf = io.StringIO()
 
         # Create the header labels
-        inter_cell = SPACE * ansi.style_aware_wcswidth(2 * self.divider_char)
+        if self.divider_char is None:
+            inter_cell = 2 * SPACE
+        else:
+            inter_cell = SPACE * ansi.style_aware_wcswidth(2 * self.divider_char)
         header = self.generate_row(inter_cell=inter_cell)
         header_buf.write(header)
 
         # Create the divider. Use empty strings for the row_data.
-        header_buf.write(super().generate_row(row_data=self.empty_data, fill_char=self.divider_char,
-                                              inter_cell=(2 * self.divider_char)))
+        if self.divider_char is not None:
+            divider = self.generate_row(row_data=self.empty_data, fill_char=self.divider_char,
+                                        inter_cell=(2 * self.divider_char))
+            header_buf.write(divider)
         return header_buf.getvalue()
 
     def generate_data_row(self, row_data: Sequence[Any]) -> str:
@@ -506,7 +512,10 @@ class SimpleTable(TableCreator):
         :param row_data: Data with an entry for each column in the row.
         :return: data row string
         """
-        inter_cell = SPACE * ansi.style_aware_wcswidth(2 * self.divider_char)
+        if self.divider_char is None:
+            inter_cell = 2 * SPACE
+        else:
+            inter_cell = SPACE * ansi.style_aware_wcswidth(2 * self.divider_char)
         return self.generate_row(row_data=row_data, inter_cell=inter_cell)
 
     def generate_table(self, table_data: Sequence[Sequence[Any]], *,
