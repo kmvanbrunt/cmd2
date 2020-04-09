@@ -369,7 +369,7 @@ class TableCreator:
         """
         class Cell:
             """Inner class which represents a table cell"""
-            def __init__(self):
+            def __init__(self) -> None:
                 # Data in this cell split into individual lines
                 self.lines = []
 
