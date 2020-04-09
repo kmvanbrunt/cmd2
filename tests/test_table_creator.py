@@ -237,8 +237,8 @@ def test_simple_table():
     column_2 = Column("Col 2", width=15)
 
     row_data = list()
-    row_data.append(["Col 1 row 1", "Col 2 row 1"])
-    row_data.append(["Col 1 row 2", "Col 2 row 2"])
+    row_data.append(["Col 1 Row 1", "Col 2 Row 1"])
+    row_data.append(["Col 1 Row 2", "Col 2 Row 2"])
 
     # Default options
     st = SimpleTable([column_1, column_2])
@@ -246,9 +246,9 @@ def test_simple_table():
 
     assert table == ('Col 1            Col 2          \n'
                      '--------------------------------\n'
-                     'Col 1 row 1      Col 2 row 1    \n'
+                     'Col 1 Row 1      Col 2 Row 1    \n'
                      '\n'
-                     'Col 1 row 2      Col 2 row 2    \n')
+                     'Col 1 Row 2      Col 2 Row 2    \n')
 
     # Custom divider
     st = SimpleTable([column_1, column_2], divider_char='─')
@@ -256,25 +256,25 @@ def test_simple_table():
 
     assert table == ('Col 1            Col 2          \n'
                      '────────────────────────────────\n'
-                     'Col 1 row 1      Col 2 row 1    \n'
+                     'Col 1 Row 1      Col 2 Row 1    \n'
                      '\n'
-                     'Col 1 row 2      Col 2 row 2    \n')
+                     'Col 1 Row 2      Col 2 Row 2    \n')
 
     # No row spacing
     st = SimpleTable([column_1, column_2])
     table = st.generate_table(row_data, row_spacing=0)
     assert table == ('Col 1            Col 2          \n'
                      '--------------------------------\n'
-                     'Col 1 row 1      Col 2 row 1    \n'
-                     'Col 1 row 2      Col 2 row 2    \n')
+                     'Col 1 Row 1      Col 2 Row 1    \n'
+                     'Col 1 Row 2      Col 2 Row 2    \n')
 
     # No header
     st = SimpleTable([column_1, column_2])
     table = st.generate_table(row_data, include_header=False)
 
-    assert table == ('Col 1 row 1      Col 2 row 1    \n'
+    assert table == ('Col 1 Row 1      Col 2 Row 1    \n'
                      '\n'
-                     'Col 1 row 2      Col 2 row 2    \n')
+                     'Col 1 Row 2      Col 2 Row 2    \n')
 
     # Invalid row spacing
     st = SimpleTable([column_1, column_2])
@@ -288,8 +288,8 @@ def test_bordered_table():
     column_2 = Column("Col 2", width=15)
 
     row_data = list()
-    row_data.append(["Col 1 row 1", "Col 2 row 1"])
-    row_data.append(["Col 1 row 2", "Col 2 row 2"])
+    row_data.append(["Col 1 Row 1", "Col 2 Row 1"])
+    row_data.append(["Col 1 Row 2", "Col 2 Row 2"])
 
     # Default options
     bt = BorderedTable([column_1, column_2])
@@ -297,16 +297,27 @@ def test_bordered_table():
     assert table == ('╔═════════════════╤═════════════════╗\n'
                      '║ Col 1           │ Col 2           ║\n'
                      '╠═════════════════╪═════════════════╣\n'
-                     '║ Col 1 row 1     │ Col 2 row 1     ║\n'
+                     '║ Col 1 Row 1     │ Col 2 Row 1     ║\n'
                      '╟─────────────────┼─────────────────╢\n'
-                     '║ Col 1 row 2     │ Col 2 row 2     ║\n'
+                     '║ Col 1 Row 2     │ Col 2 Row 2     ║\n'
                      '╚═════════════════╧═════════════════╝\n')
+
+    # No column borders
+    bt = BorderedTable([column_1, column_2], column_borders=False)
+    table = bt.generate_table(row_data)
+    assert table == ('╔══════════════════════════════════╗\n'
+                     '║ Col 1            Col 2           ║\n'
+                     '╠══════════════════════════════════╣\n'
+                     '║ Col 1 Row 1      Col 2 Row 1     ║\n'
+                     '╟──────────────────────────────────╢\n'
+                     '║ Col 1 Row 2      Col 2 Row 2     ║\n'
+                     '╚══════════════════════════════════╝\n')
 
     # No header
     bt = BorderedTable([column_1, column_2])
     table = bt.generate_table(row_data, include_header=False)
     assert table == ('╔═════════════════╤═════════════════╗\n'
-                     '║ Col 1 row 1     │ Col 2 row 1     ║\n'
+                     '║ Col 1 Row 1     │ Col 2 Row 1     ║\n'
                      '╟─────────────────┼─────────────────╢\n'
-                     '║ Col 1 row 2     │ Col 2 row 2     ║\n'
+                     '║ Col 1 Row 2     │ Col 2 Row 2     ║\n'
                      '╚═════════════════╧═════════════════╝\n')
