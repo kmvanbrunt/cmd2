@@ -5,7 +5,7 @@ Unit testing for cmd2/table_creator.py module
 import pytest
 
 from cmd2 import ansi
-from cmd2.table_creator import Column, HorizontalAlignment, SimpleTable, TableCreator, VerticalAlignment
+from cmd2.table_creator import BorderedTable, Column, HorizontalAlignment, SimpleTable, TableCreator, VerticalAlignment
 
 
 def test_column_creation():
@@ -281,3 +281,32 @@ def test_simple_table():
     with pytest.raises(ValueError) as excinfo:
         st.generate_table(row_data, row_spacing=-1)
     assert "Row spacing cannot be less than 0" in str(excinfo.value)
+
+
+def test_bordered_table():
+    column_1 = Column("Col 1", width=15)
+    column_2 = Column("Col 2", width=15)
+
+    row_data = list()
+    row_data.append(["Col 1 row 1", "Col 2 row 1"])
+    row_data.append(["Col 1 row 2", "Col 2 row 2"])
+
+    # Default options
+    bt = BorderedTable([column_1, column_2])
+    table = bt.generate_table(row_data)
+    assert table == ('╔═════════════════╤═════════════════╗\n'
+                     '║ Col 1           │ Col 2           ║\n'
+                     '╠═════════════════╪═════════════════╣\n'
+                     '║ Col 1 row 1     │ Col 2 row 1     ║\n'
+                     '╟─────────────────┼─────────────────╢\n'
+                     '║ Col 1 row 2     │ Col 2 row 2     ║\n'
+                     '╚═════════════════╧═════════════════╝\n')
+
+    # No header
+    bt = BorderedTable([column_1, column_2])
+    table = bt.generate_table(row_data, include_header=False)
+    assert table == ('╔═════════════════╤═════════════════╗\n'
+                     '║ Col 1 row 1     │ Col 2 row 1     ║\n'
+                     '╟─────────────────┼─────────────────╢\n'
+                     '║ Col 1 row 2     │ Col 2 row 2     ║\n'
+                     '╚═════════════════╧═════════════════╝\n')
