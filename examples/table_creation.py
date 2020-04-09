@@ -10,7 +10,7 @@ from cmd2.table_creator import AlternatingTable, BorderedTable, Column, Horizont
 
 
 class DollarFormatter:
-    """Example class to show that any object type can be passed to TableCreator"""
+    """Example class to show that any object type can be passed as data to TableCreator and converted to a string"""
     def __init__(self, val: float) -> None:
         self.val = val
 
