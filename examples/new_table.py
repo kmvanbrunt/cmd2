@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-"""Examples of using the new table API"""
+"""Examples of using the cmd2 table creation API"""
 import functools
 import sys
 from typing import List
@@ -13,6 +13,7 @@ def ansi_print(text):
     ansi.style_aware_write(sys.stdout, text + '\n')
 
 
+# Text styles used in our data
 bold_yellow = functools.partial(ansi.style, fg=ansi.fg.bright_yellow, bold=True)
 blue = functools.partial(ansi.style, fg=ansi.fg.bright_blue)
 green = functools.partial(ansi.style, fg=ansi.fg.green)

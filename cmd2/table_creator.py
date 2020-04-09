@@ -1,5 +1,5 @@
 # coding=utf-8
-"""Table creation API"""
+"""cmd2 table creation API"""
 import functools
 import io
 from collections import deque
@@ -75,7 +75,14 @@ class Column:
 class TableCreator:
     """
     Base table creation class. This class handles ANSI style sequences and characters with display widths greater than 1
-    when performing width calculations.
+    when performing width calculations. It was designed with the ability to build tables 1 row at a time. This helps
+    when you have large data sets that you don't want to hold in memory or when you receive portions of the data set
+    incrementally.
+
+    TableCreator has 1 public method: generate_row()
+    This function and the Column class provide all features needed to build tables with headers, borders, colors,
+    horizontal and vertical alignment, and wrapped text. However, it's generally easier to inherit from this class and
+    implement a more granular API rather than use TableCreator directly. There are examples of this defined after this class.
     """
     def __init__(self, cols: Sequence[Column], *, tab_width: int = 4) -> None:
         """
@@ -343,9 +350,12 @@ class TableCreator:
                          column in the row. (Defaults to None)
         :param fill_char: character that fills remaining space in a cell. Defaults to space. If this is a tab, then it will
                           be converted to one space. (Cannot be a line breaking character)
-        :param pre_line: string to print after a row line (Defaults to blank)
-        :param inter_cell: string to print between cell lines (Defaults to 2 spaces)
-        :param post_line: string to print after a row line (Defaults to blank)
+        :param pre_line: string to print before each line of a row. This can be used for a left row border and
+                         padding before the first cell's text. (Defaults to blank)
+        :param inter_cell: string to print where two cells meet. This can be used for a border between cells and padding
+                           between it and the 2 cells' text. (Defaults to 2 spaces)
+        :param post_line: string to print after each line of a row. This can be used for padding after the last cell's text
+                          and a right row border. (Defaults to blank)
         :return: row string
         :raises ValueError if data isn't the same length as self.cols
                 TypeError if fill_char is more than one character (not including ANSI style sequences)
@@ -447,8 +457,8 @@ class TableCreator:
 
 
 ############################################################################################################
-# The following are implementations of TableCreator which demonstrate how to make various
-# types of tables. They can be used as-is or serve as inspiration for other table classes.
+# The following are implementations of TableCreator which demonstrate how to make various types
+# of tables. They can be used as-is or serve as inspiration for other custom table classes.
 ############################################################################################################
 class SimpleTable(TableCreator):
     """
